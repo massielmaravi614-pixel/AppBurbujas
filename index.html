@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+        *{
+            margin:0;
+            padding:0;
+            box-sizing:border-box;
+            font-family:Arial, Helvetica, sans-serif;
+        }
+
+        body{
+            background:#111;
+            color:white;
+            min-height:100vh;
+            display:flex;
+            justify-content:center;
+            align-items:center;
+        }
+
+        .container{
+            text-align:center;
+        }
+
+        h1{
+            margin-bottom:30px;
+        }
+
+        .menu{
+            display:grid;
+            grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+            gap:20px;
+            width:800px;
+            max-width:90vw;
+        }
+
+        .card{
+            background:#222;
+            padding:20px;
+            border-radius:10px;
+            transition:.3s;
+        }
+
+        .card:hover{
+            background:#333;
+            transform:translateY(-5px);
+        }
+
+        .card a{
+            text-decoration:none;
+            color:white;
+            font-size:20px;
+            font-weight:bold;
+            display:block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Mis Proyectos</h1>
+
+        <div class="menu">
+
+            <div class="card">
+                <a href="./Dibujo/index.html">🎨 Dibujo</a>
+            </div>
+
+            <div class="card">
+                <a href="./Emociones/index.html">😊 Emociones</a>
+            </div>
+
+            <div class="card">
+                <a href="./Face Mesh/index.html">👤 Face Mesh</a>
+            </div>
+
+            <div class="card">
+                <a href="./Galeria/index.html">🖼️ Galería</a>
+            </div>
+
+            <div class="card">
+                <a href="./Piano/index.html">🎹 Piano</a>
+            </div>
+
+             <div class="card">
+                <a href="./Burbujas/burbuja.html">🫧 Burbujas</a>
+            </div>
+
+        </div>
+    </div>
+
+</body>
+</html>

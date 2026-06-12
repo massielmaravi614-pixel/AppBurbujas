@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Probador Virtual AR</title>
+
+<link rel="stylesheet" href="css/styles.css">
+
+</head>
+<body>
+
+<div id="container">
+
+    <video
+        id="video"
+        autoplay
+        playsinline
+    ></video>
+
+    <canvas id="canvas"></canvas>
+
+    <div id="panel">
+
+        <h2>😎 Probador Virtual</h2>
+
+        <div>Rostro: <span id="faceStatus">No</span></div>
+
+        <div>Ancho Rostro: <span id="faceWidth">0</span></div>
+
+        <div>Ángulo: <span id="faceAngle">0</span></div>
+
+        <div>FPS: <span id="fps">0</span></div>
+
+        <div>Ancho Gafas: <span id="glassWidth">0</span></div>
+
+        <h3>Catálogo</h3>
+
+        <button id="aviadorBtn">
+            😎 Aviador
+        </button>
+
+        <button id="retroBtn">
+            🕶 Retro
+        </button>
+
+    </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+<script src="js/app.js"></script>
+
+</body>
+</html>

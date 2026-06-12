@@ -1,0 +1,1330 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🫧 Cazador de Burbujas Virtual</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background:#060612;
+  overflow:hidden;
+  font-family:'Segoe UI',system-ui,sans-serif;
+  width:100vw; height:100vh;
+  user-select:none;
+}
+#game-container { position:relative; width:100vw; height:100vh; }
+
+#webcam {
+  position:absolute; inset:0;
+  width:100%; height:100%;
+  object-fit:cover;
+  transform:scaleX(-1);
+  opacity:0.42;
+  z-index:1;
+}
+#game-canvas {
+  position:absolute; inset:0;
+  width:100%; height:100%;
+  z-index:2;
+}
+
+/* ═══════════════════ HUD ═══════════════════ */
+#hud {
+  position:absolute; inset:0;
+  z-index:10;
+  pointer-events:none;
+}
+
+/* TOP BAR */
+.hud-top {
+  position:absolute; top:0; left:0; right:0;
+  padding:14px 20px;
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+}
+
+/* Panel base */
+.panel {
+  background:rgba(8,8,28,0.78);
+  border:1.5px solid rgba(120,200,255,0.28);
+  border-radius:16px;
+  backdrop-filter:blur(14px);
+  box-shadow:0 0 22px rgba(60,140,255,0.12), inset 0 1px 0 rgba(255,255,255,0.06);
+  padding:10px 16px;
+}
+.panel-label {
+  font-size:10px;
+  letter-spacing:2.5px;
+  text-transform:uppercase;
+  color:rgba(120,200,255,0.6);
+  font-weight:700;
+}
+.panel-value {
+  font-size:36px;
+  font-weight:900;
+  color:#fff;
+  line-height:1.05;
+  font-variant-numeric:tabular-nums;
+  text-shadow:0 0 18px rgba(100,200,255,0.5);
+}
+.panel-sub {
+  font-size:10px;
+  color:rgba(120,200,255,0.45);
+  letter-spacing:1px;
+  font-weight:600;
+}
+
+/* Title panel */
+#title-panel {
+  border-color:rgba(180,120,255,0.28);
+  min-width:180px;
+}
+#game-title {
+  font-size:18px;
+  font-weight:900;
+  color:#fff;
+  letter-spacing:-0.5px;
+  white-space:nowrap;
+}
+#game-title span { color:#7ecfff; }
+#status-line {
+  font-size:10px;
+  color:rgba(180,200,255,0.5);
+  margin-top:3px;
+  letter-spacing:0.3px;
+  display:flex;
+  align-items:center;
+  gap:5px;
+}
+#status-dot {
+  width:7px; height:7px;
+  border-radius:50%;
+  background:#ff4466;
+  flex-shrink:0;
+  animation:blinkDot 1.2s ease-in-out infinite;
+}
+#status-dot.active { background:#44ff88; animation:none; }
+@keyframes blinkDot { 0%,100%{opacity:1} 50%{opacity:0.15} }
+
+/* Level panel */
+#level-panel { text-align:center; }
+#level-name {
+  font-size:13px;
+  font-weight:800;
+  color:#ffd966;
+  text-shadow:0 0 14px rgba(255,200,60,0.6);
+  letter-spacing:0.5px;
+  white-space:nowrap;
+}
+#level-bar-wrap {
+  width:90px;
+  height:5px;
+  background:rgba(255,255,255,0.1);
+  border-radius:3px;
+  margin-top:5px;
+  overflow:hidden;
+}
+#level-bar {
+  height:100%;
+  width:0%;
+  background:linear-gradient(90deg,#ffd966,#ff9932);
+  border-radius:3px;
+  transition:width 0.4s ease;
+}
+
+/* Timer panel */
+#timer-panel { text-align:center; min-width:110px; }
+#timer-value {
+  font-size:40px;
+  font-weight:900;
+  color:#fff;
+  font-variant-numeric:tabular-nums;
+  line-height:1;
+  text-shadow:0 0 18px rgba(100,200,255,0.5);
+}
+#timer-value.warning { color:#ff6644; text-shadow:0 0 22px rgba(255,80,40,0.7); animation:timerPulse 0.5s ease-in-out infinite; }
+@keyframes timerPulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.08)} }
+
+/* Lives */
+#lives-panel { text-align:center; }
+#lives-hearts { font-size:22px; letter-spacing:2px; line-height:1.2; }
+
+/* Score */
+#score-panel { text-align:right; min-width:130px; }
+
+/* Leaderboard */
+#leaderboard-panel {
+  position:absolute;
+  top:14px; right:20px;
+  width:180px;
+  display:none;
+}
+#leaderboard-panel .lb-row {
+  display:flex;
+  justify-content:space-between;
+  font-size:11px;
+  color:rgba(200,220,255,0.7);
+  padding:2px 0;
+  border-bottom:1px solid rgba(255,255,255,0.05);
+}
+#leaderboard-panel .lb-row .lb-rank { color:#ffd966; font-weight:700; width:20px; }
+#leaderboard-panel .lb-row .lb-score { color:#7ecfff; font-weight:700; }
+
+/* Bottom badge */
+#bottom-bar {
+  position:absolute;
+  bottom:16px; left:0; right:0;
+  display:flex;
+  justify-content:center;
+  gap:12px;
+  pointer-events:none;
+}
+#hands-badge {
+  background:rgba(8,8,28,0.72);
+  border:1px solid rgba(120,200,255,0.18);
+  border-radius:50px;
+  padding:6px 16px;
+  font-size:11px;
+  color:rgba(180,220,255,0.55);
+  letter-spacing:0.4px;
+  backdrop-filter:blur(8px);
+}
+#hands-badge b { color:#7ecfff; }
+
+#level-badge {
+  background:rgba(8,8,28,0.72);
+  border:1px solid rgba(255,200,60,0.22);
+  border-radius:50px;
+  padding:6px 16px;
+  font-size:11px;
+  color:rgba(255,220,140,0.7);
+  letter-spacing:0.4px;
+  backdrop-filter:blur(8px);
+}
+
+/* ═══════════════════ COMBO ═══════════════════ */
+#combo-display {
+  position:absolute;
+  top:44%; left:50%;
+  transform:translate(-50%,-50%) scale(0);
+  z-index:20;
+  font-size:80px;
+  font-weight:900;
+  color:#fff;
+  text-shadow:0 0 40px #7ecfff, 0 0 80px rgba(80,180,255,0.5);
+  pointer-events:none;
+  opacity:0;
+}
+#combo-display.show { animation:comboPop 0.75s ease forwards; }
+@keyframes comboPop {
+  0%  { transform:translate(-50%,-50%) scale(0.3); opacity:1; }
+  35% { transform:translate(-50%,-52%) scale(1.18); opacity:1; }
+  65% { transform:translate(-50%,-55%) scale(1); opacity:1; }
+  100%{ transform:translate(-50%,-68%) scale(0.85); opacity:0; }
+}
+
+/* ═══════════════════ SCREENS ═══════════════════ */
+.screen {
+  position:absolute; inset:0;
+  z-index:50;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  transition:opacity 0.5s;
+}
+.screen.hidden { opacity:0; pointer-events:none; }
+
+/* Splash */
+#splash {
+  background:linear-gradient(160deg,#0c0c2a 0%,#0a1526 55%,#0c180c 100%);
+}
+.splash-emoji { font-size:88px; animation:floatY 3s ease-in-out infinite; }
+@keyframes floatY {0%,100%{transform:translateY(0) rotate(-4deg)} 50%{transform:translateY(-16px) rotate(4deg)}}
+.splash-title { font-size:clamp(26px,5vw,50px); font-weight:900; color:#fff; margin-top:10px; letter-spacing:-1px; text-align:center; }
+.splash-title span { color:#7ecfff; }
+.splash-sub { font-size:14px; color:rgba(180,200,255,0.55); margin-top:7px; text-align:center; max-width:360px; line-height:1.55; }
+
+.diff-selector { display:flex; gap:12px; margin-top:24px; flex-wrap:wrap; justify-content:center; }
+.diff-btn {
+  padding:12px 22px;
+  border-radius:12px;
+  border:2px solid transparent;
+  font-size:14px;
+  font-weight:700;
+  cursor:pointer;
+  transition:all 0.18s;
+  letter-spacing:0.3px;
+  pointer-events:all;
+}
+.diff-btn.easy   { background:rgba(80,200,120,0.18); border-color:rgba(80,200,120,0.5); color:#7fffaa; }
+.diff-btn.medium { background:rgba(255,190,60,0.18); border-color:rgba(255,190,60,0.5); color:#ffd966; }
+.diff-btn.hard   { background:rgba(255,80,100,0.18); border-color:rgba(255,80,100,0.5); color:#ff8088; }
+.diff-btn.expert { background:rgba(200,80,255,0.18); border-color:rgba(200,80,255,0.5); color:#e088ff; }
+.diff-btn:hover  { transform:scale(1.06); filter:brightness(1.2); }
+.diff-btn.selected { filter:brightness(1.3); transform:scale(1.06); box-shadow:0 0 18px currentColor; }
+
+.instr-row { display:flex; gap:12px; margin-top:18px; flex-wrap:wrap; justify-content:center; max-width:520px; }
+.instr-card {
+  background:rgba(255,255,255,0.05);
+  border:1px solid rgba(120,200,255,0.15);
+  border-radius:12px;
+  padding:10px 14px;
+  text-align:center;
+  font-size:12px;
+  color:rgba(200,220,255,0.7);
+  flex:1 1 120px;
+}
+.instr-card .ic { font-size:22px; display:block; margin-bottom:4px; }
+
+.start-btn {
+  margin-top:26px;
+  background:linear-gradient(135deg,#3b8ef5,#7ecfff);
+  color:#fff;
+  border:none;
+  border-radius:50px;
+  padding:14px 50px;
+  font-size:17px;
+  font-weight:700;
+  cursor:pointer;
+  box-shadow:0 0 32px rgba(80,160,255,0.45);
+  letter-spacing:0.4px;
+  pointer-events:all;
+  transition:transform 0.15s, box-shadow 0.15s;
+}
+.start-btn:hover { transform:scale(1.05); box-shadow:0 0 50px rgba(80,160,255,0.65); }
+.perm-note { margin-top:11px; font-size:11px; color:rgba(180,200,255,0.3); }
+
+/* Game Over */
+#gameover {
+  background:rgba(6,6,18,0.94);
+  backdrop-filter:blur(18px);
+  display:none;
+}
+#gameover.show { display:flex; }
+.go-title {
+  font-size:clamp(56px,10vw,100px);
+  font-weight:900;
+  color:#ff3355;
+  letter-spacing:-2px;
+  text-shadow:0 0 60px rgba(255,40,70,0.7), 0 0 120px rgba(255,40,70,0.3);
+  animation:goShake 0.5s ease 0.1s;
+  text-align:center;
+}
+@keyframes goShake {
+  0%,100%{transform:translateX(0)}
+  20%{transform:translateX(-8px) rotate(-1deg)}
+  40%{transform:translateX(8px) rotate(1deg)}
+  60%{transform:translateX(-5px)}
+  80%{transform:translateX(5px)}
+}
+.go-sub { font-size:16px; color:rgba(255,180,180,0.65); margin-top:6px; letter-spacing:1px; }
+.go-score-wrap { margin-top:22px; text-align:center; }
+.go-score-wrap .lbl { font-size:12px; letter-spacing:3px; color:rgba(200,200,255,0.45); text-transform:uppercase; }
+.go-score-big { font-size:64px; font-weight:900; color:#fff; text-shadow:0 0 24px rgba(100,200,255,0.5); font-variant-numeric:tabular-nums; }
+.go-stats {
+  display:flex;
+  gap:20px;
+  margin-top:16px;
+  flex-wrap:wrap;
+  justify-content:center;
+}
+.go-stat {
+  background:rgba(255,255,255,0.06);
+  border:1px solid rgba(255,255,255,0.1);
+  border-radius:12px;
+  padding:10px 18px;
+  text-align:center;
+}
+.go-stat .st-val { font-size:26px; font-weight:800; color:#7ecfff; }
+.go-stat .st-lbl { font-size:10px; color:rgba(180,200,255,0.45); text-transform:uppercase; letter-spacing:1.5px; margin-top:1px; }
+
+.lb-list { margin-top:20px; width:260px; }
+.lb-list .lb-title { font-size:11px; letter-spacing:2px; text-transform:uppercase; color:rgba(180,200,255,0.4); margin-bottom:8px; text-align:center; }
+.lb-entry {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:5px 12px;
+  border-radius:8px;
+  font-size:13px;
+  margin-bottom:3px;
+}
+.lb-entry.highlight { background:rgba(120,200,255,0.12); border:1px solid rgba(120,200,255,0.25); }
+.lb-entry .le-rank { color:#ffd966; font-weight:700; width:24px; }
+.lb-entry .le-diff { font-size:10px; color:rgba(200,200,200,0.4); }
+.lb-entry .le-score { color:#7ecfff; font-weight:800; }
+
+.go-buttons { display:flex; gap:14px; margin-top:24px; flex-wrap:wrap; justify-content:center; }
+.go-btn {
+  padding:12px 30px;
+  border-radius:50px;
+  border:none;
+  font-size:15px;
+  font-weight:700;
+  cursor:pointer;
+  pointer-events:all;
+  transition:transform 0.15s, box-shadow 0.15s;
+  letter-spacing:0.3px;
+}
+.go-btn.primary {
+  background:linear-gradient(135deg,#3b8ef5,#7ecfff);
+  color:#fff;
+  box-shadow:0 0 28px rgba(80,160,255,0.4);
+}
+.go-btn.secondary {
+  background:rgba(255,255,255,0.08);
+  color:rgba(200,220,255,0.8);
+  border:1.5px solid rgba(200,220,255,0.2);
+}
+.go-btn:hover { transform:scale(1.05); }
+
+/* Level up banner */
+#levelup-banner {
+  position:absolute;
+  top:50%;
+  left:50%;
+  transform:translate(-50%,-50%);
+  z-index:25;
+  text-align:center;
+  pointer-events:none;
+  display:none;
+}
+#levelup-banner.show { display:block; animation:luAnim 1.4s ease forwards; }
+@keyframes luAnim {
+  0%  { opacity:0; transform:translate(-50%,-50%) scale(0.5); }
+  20% { opacity:1; transform:translate(-50%,-50%) scale(1.1); }
+  65% { opacity:1; transform:translate(-50%,-50%) scale(1); }
+  100%{ opacity:0; transform:translate(-50%,-60%) scale(0.9); }
+}
+.lu-text { font-size:52px; font-weight:900; color:#ffd966; text-shadow:0 0 40px rgba(255,200,60,0.8); letter-spacing:-1px; }
+.lu-sub  { font-size:18px; color:rgba(255,220,140,0.8); margin-top:4px; }
+
+/* Loading */
+#loading {
+  position:absolute; inset:0;
+  z-index:60;
+  display:none;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  background:rgba(6,6,18,0.92);
+  backdrop-filter:blur(10px);
+}
+.loader-ring {
+  width:52px; height:52px;
+  border:4px solid rgba(100,180,255,0.12);
+  border-top-color:#7ecfff;
+  border-radius:50%;
+  animation:spin 0.85s linear infinite;
+  margin-bottom:14px;
+}
+@keyframes spin { to{transform:rotate(360deg)} }
+.loader-txt { color:rgba(180,220,255,0.65); font-size:13px; letter-spacing:0.8px; }
+
+/* Volume control */
+#vol-ctrl {
+  position:absolute;
+  bottom:16px;
+  right:20px;
+  z-index:12;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  background:rgba(8,8,28,0.72);
+  border:1px solid rgba(120,200,255,0.18);
+  border-radius:50px;
+  padding:6px 14px;
+  backdrop-filter:blur(8px);
+}
+#vol-icon { font-size:16px; cursor:pointer; }
+#vol-slider {
+  width:70px;
+  accent-color:#7ecfff;
+  cursor:pointer;
+}
+</style>
+</head>
+<body>
+<div id="game-container">
+  <video id="webcam" autoplay playsinline muted></video>
+  <canvas id="game-canvas"></canvas>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="hud-top">
+      <!-- Title & status -->
+      <div class="panel" id="title-panel">
+        <div id="game-title">🫧 Cazador de <span>Burbujas</span></div>
+        <div id="status-line">
+          <span id="status-dot"></span>
+          <span id="status-text">Iniciando cámara...</span>
+        </div>
+      </div>
+
+      <!-- Lives -->
+      <div class="panel" id="lives-panel">
+        <div class="panel-label">Vidas</div>
+        <div id="lives-hearts">❤️❤️❤️</div>
+      </div>
+
+      <!-- Timer -->
+      <div class="panel" id="timer-panel">
+        <div class="panel-label">Tiempo</div>
+        <div class="panel-value" id="timer-value">60</div>
+      </div>
+
+      <!-- Level -->
+      <div class="panel" id="level-panel">
+        <div class="panel-label">Nivel</div>
+        <div id="level-name">—</div>
+        <div id="level-bar-wrap"><div id="level-bar"></div></div>
+      </div>
+
+      <!-- Score -->
+      <div class="panel" id="score-panel">
+        <div class="panel-label">Puntos</div>
+        <div class="panel-value" id="score-value">0</div>
+        <div class="panel-sub">pts</div>
+      </div>
+    </div>
+
+    <!-- Bottom -->
+    <div id="bottom-bar">
+      <div id="hands-badge">Manos: <b id="hand-count">0</b> | Puntos detectados: <b id="lm-count">0</b></div>
+      <div id="level-badge" id="diff-badge">—</div>
+    </div>
+  </div>
+
+  <!-- Level up banner -->
+  <div id="levelup-banner">
+    <div class="lu-text">⬆️ NIVEL ARRIBA</div>
+    <div class="lu-sub" id="lu-sub-text">¡Sigue así!</div>
+  </div>
+
+  <!-- Combo -->
+  <div id="combo-display">+10</div>
+
+  <!-- Volume -->
+  <div id="vol-ctrl">
+    <span id="vol-icon">🔊</span>
+    <input type="range" id="vol-slider" min="0" max="1" step="0.05" value="0.5">
+  </div>
+
+  <!-- Loading -->
+  <div id="loading"><div class="loader-ring"></div><div class="loader-txt">Cargando MediaPipe Hands…</div></div>
+
+  <!-- GAME OVER screen -->
+  <div id="gameover" class="screen">
+    <div class="go-title">GAME OVER</div>
+    <div class="go-sub">¡Buen intento! ¿Lo intentas de nuevo?</div>
+    <div class="go-score-wrap">
+      <div class="lbl">Puntuación Final</div>
+      <div class="go-score-big" id="go-score">0</div>
+    </div>
+    <div class="go-stats">
+      <div class="go-stat"><div class="st-val" id="go-bubbles">0</div><div class="st-lbl">Burbujas</div></div>
+      <div class="go-stat"><div class="st-val" id="go-level">1</div><div class="st-lbl">Nivel máx.</div></div>
+      <div class="go-stat"><div class="st-val" id="go-diff">Fácil</div><div class="st-lbl">Dificultad</div></div>
+    </div>
+    <div class="lb-list">
+      <div class="lb-title">🏆 Mejores Puntuaciones</div>
+      <div id="lb-entries"></div>
+    </div>
+    <div class="go-buttons">
+      <button class="go-btn primary" id="retry-btn">🔄 Jugar de nuevo</button>
+      <button class="go-btn secondary" id="menu-btn">🏠 Menú principal</button>
+    </div>
+  </div>
+
+  <!-- SPLASH / MENU -->
+  <div id="splash" class="screen">
+    <div class="splash-emoji">🫧</div>
+    <div class="splash-title">Cazador de <span>Burbujas</span></div>
+    <div class="splash-sub">Usa tus manos frente a la cámara para reventar burbujas virtuales. ¡Sin tocar la pantalla!</div>
+
+    <div style="margin-top:20px;font-size:12px;color:rgba(180,200,255,0.45);letter-spacing:2px;text-transform:uppercase;">Selecciona dificultad</div>
+    <div class="diff-selector">
+      <button class="diff-btn easy selected"   data-diff="easy">😊 Fácil</button>
+      <button class="diff-btn medium"           data-diff="medium">😤 Medio</button>
+      <button class="diff-btn hard"             data-diff="hard">🔥 Difícil</button>
+      <button class="diff-btn expert"           data-diff="expert">💀 Experto</button>
+    </div>
+
+    <div class="instr-row">
+      <div class="instr-card"><span class="ic">🖐️</span>Toda la mano rastreada</div>
+      <div class="instr-card"><span class="ic">⏱️</span>60 s por ronda</div>
+      <div class="instr-card"><span class="ic">❤️</span>3 vidas — ¡no las pierdas!</div>
+      <div class="instr-card"><span class="ic">⬆️</span>Niveles de dificultad</div>
+    </div>
+
+    <button class="start-btn" id="start-btn">¡Comenzar juego!</button>
+    <div class="perm-note">Se solicitará acceso a la cámara web</div>
+  </div>
+</div>
+
+<!-- MediaPipe CDN -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+<script>
+// ═══════════════════════════════════════════════
+//  DOM
+// ═══════════════════════════════════════════════
+const video       = document.getElementById('webcam');
+const canvas      = document.getElementById('game-canvas');
+const ctx         = canvas.getContext('2d');
+const scoreEl     = document.getElementById('score-value');
+const timerEl     = document.getElementById('timer-value');
+const livesEl     = document.getElementById('lives-hearts');
+const levelNameEl = document.getElementById('level-name');
+const levelBarEl  = document.getElementById('level-bar');
+const statusDot   = document.getElementById('status-dot');
+const statusText  = document.getElementById('status-text');
+const handCountEl = document.getElementById('hand-count');
+const lmCountEl   = document.getElementById('lm-count');
+const comboDisp   = document.getElementById('combo-display');
+const loadingEl   = document.getElementById('loading');
+const splashEl    = document.getElementById('splash');
+const gameoverEl  = document.getElementById('gameover');
+const luBanner    = document.getElementById('levelup-banner');
+const luSubText   = document.getElementById('lu-sub-text');
+const diffBadge   = document.getElementById('level-badge');
+const lbEntries   = document.getElementById('lb-entries');
+const volSlider   = document.getElementById('vol-slider');
+const volIcon     = document.getElementById('vol-icon');
+
+// ═══════════════════════════════════════════════
+//  DIFFICULTY CONFIG
+// ═══════════════════════════════════════════════
+const DIFFICULTIES = {
+  easy:   { label:'😊 Fácil',   lives:5, timeLimit:90, spawnBase:1100, spawnMin:600, speedMult:0.8, radMin:35, radMax:65, pointsPerBubble:10 },
+  medium: { label:'😤 Medio',   lives:3, timeLimit:60, spawnBase:900,  spawnMin:400, speedMult:1.0, radMin:28, radMax:56, pointsPerBubble:15 },
+  hard:   { label:'🔥 Difícil', lives:3, timeLimit:60, spawnBase:650,  spawnMin:280, speedMult:1.4, radMin:22, radMax:48, pointsPerBubble:20 },
+  expert: { label:'💀 Experto', lives:2, timeLimit:45, spawnBase:450,  spawnMin:180, speedMult:2.0, radMin:18, radMax:40, pointsPerBubble:25 },
+};
+
+// ═══════════════════════════════════════════════
+//  GAME LEVELS (progress within a match)
+// ═══════════════════════════════════════════════
+const LEVELS = [
+  { name:'Principiante', scoreNeeded:0,   color:'#7ecfff', glowColor:'rgba(80,180,255,0.4)' },
+  { name:'Cazador',      scoreNeeded:100, color:'#7effaa', glowColor:'rgba(80,255,140,0.4)' },
+  { name:'Experto',      scoreNeeded:250, color:'#ffd966', glowColor:'rgba(255,200,60,0.4)' },
+  { name:'Maestro',      scoreNeeded:500, color:'#ff9932', glowColor:'rgba(255,140,40,0.4)' },
+  { name:'Leyenda',      scoreNeeded:900, color:'#e088ff', glowColor:'rgba(200,80,255,0.4)' },
+];
+
+// ═══════════════════════════════════════════════
+//  AUDIO ENGINE  (Web Audio API — zero dependencies)
+// ═══════════════════════════════════════════════
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let audioCtx, masterGain, bgMusic, isMuted = false;
+
+function initAudio() {
+  audioCtx  = new AudioCtx();
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = parseFloat(volSlider.value);
+  masterGain.connect(audioCtx.destination);
+}
+
+/* ─── Background music: a looping generative chiptune ─── */
+function startBgMusic() {
+  if (!audioCtx || bgMusic) return;
+
+  const melody = [
+    523,659,784,1047, 784,659,523,392,
+    440,523,659,784,  659,523,440,349,
+    392,494,587,784,  659,523,440,392,
+    523,659,784,1046, 784,659,523,440,
+  ];
+  const bpm = 148;
+  const beatSec = 60 / bpm;
+  let noteIdx = 0;
+
+  function scheduleNote(startTime) {
+    const freq = melody[noteIdx % melody.length];
+    noteIdx++;
+
+    const osc  = audioCtx.createOscillator();
+    const env  = audioCtx.createGain();
+    const filt = audioCtx.createBiquadFilter();
+    filt.type = 'lowpass';
+    filt.frequency.value = 2400;
+
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(freq, startTime);
+    env.gain.setValueAtTime(0, startTime);
+    env.gain.linearRampToValueAtTime(0.08, startTime + 0.02);
+    env.gain.exponentialRampToValueAtTime(0.001, startTime + beatSec * 0.85);
+
+    osc.connect(filt); filt.connect(env); env.connect(masterGain);
+    osc.start(startTime);
+    osc.stop(startTime + beatSec);
+  }
+
+  // Bass line
+  const bassNotes = [130, 98, 110, 98];
+  let bassIdx = 0;
+  function scheduleBass(startTime) {
+    const freq = bassNotes[bassIdx++ % bassNotes.length];
+    const osc = audioCtx.createOscillator();
+    const env = audioCtx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(freq, startTime);
+    env.gain.setValueAtTime(0, startTime);
+    env.gain.linearRampToValueAtTime(0.05, startTime + 0.01);
+    env.gain.exponentialRampToValueAtTime(0.001, startTime + beatSec * 4 * 0.9);
+    osc.connect(env); env.connect(masterGain);
+    osc.start(startTime);
+    osc.stop(startTime + beatSec * 4);
+  }
+
+  let t = audioCtx.currentTime + 0.05;
+  let bassT = t;
+  const tick = setInterval(() => {
+    if (!gameRunning) { clearInterval(tick); bgMusic = null; return; }
+    const now = audioCtx.currentTime;
+    while (t < now + 0.5) { scheduleNote(t); t += beatSec; }
+    while (bassT < now + 0.5) { scheduleBass(bassT); bassT += beatSec * 4; }
+  }, 100);
+
+  bgMusic = tick;
+}
+
+function stopBgMusic() {
+  if (bgMusic) { clearInterval(bgMusic); bgMusic = null; }
+}
+
+/* ─── SFX ─── */
+function sfxPop(x, y) {
+  if (!audioCtx) return;
+  const freq = 400 + Math.random() * 500;
+  const osc = audioCtx.createOscillator();
+  const env = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(freq * 2.5, audioCtx.currentTime + 0.08);
+  env.gain.setValueAtTime(0.22, audioCtx.currentTime);
+  env.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.18);
+  osc.connect(env); env.connect(masterGain);
+  osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+}
+
+function sfxLoseLife() {
+  if (!audioCtx) return;
+  [440, 330, 220].forEach((f, i) => {
+    const osc = audioCtx.createOscillator();
+    const env = audioCtx.createGain();
+    const t = audioCtx.currentTime + i * 0.1;
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(f, t);
+    env.gain.setValueAtTime(0.15, t);
+    env.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+    osc.connect(env); env.connect(masterGain);
+    osc.start(t); osc.stop(t + 0.2);
+  });
+}
+
+function sfxLevelUp() {
+  if (!audioCtx) return;
+  [523, 659, 784, 1047].forEach((f, i) => {
+    const osc = audioCtx.createOscillator();
+    const env = audioCtx.createGain();
+    const t = audioCtx.currentTime + i * 0.1;
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(f, t);
+    env.gain.setValueAtTime(0.18, t);
+    env.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+    osc.connect(env); env.connect(masterGain);
+    osc.start(t); osc.stop(t + 0.28);
+  });
+}
+
+function sfxGameOver() {
+  if (!audioCtx) return;
+  [392, 349, 294, 196].forEach((f, i) => {
+    const osc = audioCtx.createOscillator();
+    const env = audioCtx.createGain();
+    const t = audioCtx.currentTime + i * 0.22;
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(f, t);
+    env.gain.setValueAtTime(0.2, t);
+    env.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+    osc.connect(env); env.connect(masterGain);
+    osc.start(t); osc.stop(t + 0.5);
+  });
+}
+
+function sfxCountdown() {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const env = audioCtx.createGain();
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+  env.gain.setValueAtTime(0.15, audioCtx.currentTime);
+  env.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.12);
+  osc.connect(env); env.connect(masterGain);
+  osc.start(); osc.stop(audioCtx.currentTime + 0.14);
+}
+
+// ═══════════════════════════════════════════════
+//  GAME STATE
+// ═══════════════════════════════════════════════
+let score=0, lives=3, timeLeft=60, currentLevel=0, bubblesPopped=0;
+let bubbles=[], particles=[], fingerPoints=[];
+let lastSpawn=0, spawnRate=900, gameRunning=false;
+let selectedDiff='medium', diffConfig=DIFFICULTIES.medium;
+let timerInterval=null, frameCount=0, lastTimerWarning=false;
+let leaderboard=[];
+
+// ═══════════════════════════════════════════════
+//  CANVAS
+// ═══════════════════════════════════════════════
+function resizeCanvas() {
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+// ═══════════════════════════════════════════════
+//  BUBBLE COLORS
+// ═══════════════════════════════════════════════
+const BCOLORS = [
+  { fill:'rgba(120,200,255,0.52)', stroke:'rgba(160,230,255,0.9)', glow:'#7ecfff' },
+  { fill:'rgba(200,120,255,0.52)', stroke:'rgba(230,160,255,0.9)', glow:'#c87eff' },
+  { fill:'rgba(120,255,180,0.52)', stroke:'rgba(160,255,210,0.9)', glow:'#7effb4' },
+  { fill:'rgba(255,200,80,0.52)',  stroke:'rgba(255,230,130,0.9)', glow:'#ffc850' },
+  { fill:'rgba(255,120,160,0.52)', stroke:'rgba(255,160,190,0.9)', glow:'#ff78a0' },
+  { fill:'rgba(255,160,80,0.52)',  stroke:'rgba(255,200,130,0.9)', glow:'#ff9932' },
+];
+
+function spawnBubble() {
+  const cfg = diffConfig;
+  const r = cfg.radMin + Math.random() * (cfg.radMax - cfg.radMin);
+  const x = r + Math.random() * (canvas.width - r*2);
+  const lvlMult = 1 + currentLevel * 0.18;
+  const speed = (1.2 + Math.random() * 2.2) * cfg.speedMult * lvlMult;
+  const color = BCOLORS[Math.floor(Math.random() * BCOLORS.length)];
+  bubbles.push({ x, y:-r, r, speed, color, active:true, wobble:Math.random()*Math.PI*2, id:frameCount });
+}
+
+// ═══════════════════════════════════════════════
+//  PARTICLES
+// ═══════════════════════════════════════════════
+function spawnParticles(x, y, color) {
+  const n = 16 + Math.floor(Math.random() * 10);
+  for (let i=0;i<n;i++) {
+    const a = (Math.PI*2/n)*i + (Math.random()-0.5)*0.5;
+    const s = 2.5 + Math.random()*5;
+    particles.push({
+      x, y,
+      vx: Math.cos(a)*s, vy: Math.sin(a)*s - 2,
+      r: 3 + Math.random()*5,
+      alpha: 1,
+      color: color.glow,
+      life: 0.8 + Math.random()*0.35
+    });
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  COLLISION
+// ═══════════════════════════════════════════════
+function eucDist(ax,ay,bx,by){ const dx=ax-bx,dy=ay-by; return Math.sqrt(dx*dx+dy*dy); }
+
+function checkCollisions() {
+  for (const pt of fingerPoints) {
+    for (const b of bubbles) {
+      if (!b.active) continue;
+      if (eucDist(pt.x, pt.y, b.x, b.y) <= b.r + 12) {
+        b.active = false;
+        score += diffConfig.pointsPerBubble;
+        bubblesPopped++;
+        scoreEl.textContent = score;
+        spawnParticles(b.x, b.y, b.color);
+        sfxPop(b.x, b.y);
+        showCombo(`+${diffConfig.pointsPerBubble}`);
+        checkLevelUp();
+      }
+    }
+  }
+  // Bubbles that fell off screen = lose a life
+  const before = bubbles.length;
+  bubbles = bubbles.filter(b => {
+    if (b.active && b.y - b.r > canvas.height) {
+      loseLife();
+      return false;
+    }
+    return b.active;
+  });
+}
+
+// ═══════════════════════════════════════════════
+//  LIVES
+// ═══════════════════════════════════════════════
+function loseLife() {
+  if (lives <= 0) return;
+  lives--;
+  sfxLoseLife();
+  updateLivesUI();
+  if (lives <= 0) triggerGameOver();
+}
+
+function updateLivesUI() {
+  const full  = '❤️'.repeat(Math.max(0, lives));
+  const empty = '🖤'.repeat(Math.max(0, diffConfig.lives - lives));
+  livesEl.textContent = full + empty;
+}
+
+// ═══════════════════════════════════════════════
+//  TIMER
+// ═══════════════════════════════════════════════
+function startTimer() {
+  timeLeft = diffConfig.timeLimit;
+  timerEl.textContent = timeLeft;
+  timerEl.className = '';
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    if (!gameRunning) { clearInterval(timerInterval); return; }
+    timeLeft--;
+    timerEl.textContent = timeLeft;
+    if (timeLeft <= 10) {
+      timerEl.className = 'panel-value warning';
+      sfxCountdown();
+    }
+    if (timeLeft <= 0) { clearInterval(timerInterval); triggerGameOver(); }
+  }, 1000);
+}
+
+// ═══════════════════════════════════════════════
+//  LEVELS
+// ═══════════════════════════════════════════════
+function checkLevelUp() {
+  for (let i = LEVELS.length - 1; i >= 0; i--) {
+    if (score >= LEVELS[i].scoreNeeded && i > currentLevel) {
+      currentLevel = i;
+      sfxLevelUp();
+      showLevelUp(LEVELS[i].name);
+      updateLevelUI();
+      // Also reduce spawn rate for extra challenge
+      spawnRate = Math.max(diffConfig.spawnMin, diffConfig.spawnBase - currentLevel * 120);
+    }
+  }
+}
+
+function updateLevelUI() {
+  const lv = LEVELS[currentLevel];
+  levelNameEl.textContent = lv.name;
+  levelNameEl.style.color  = lv.color;
+  levelNameEl.style.textShadow = `0 0 14px ${lv.color}`;
+
+  const next = LEVELS[currentLevel + 1];
+  if (next) {
+    const pct = Math.min(100, ((score - lv.scoreNeeded) / (next.scoreNeeded - lv.scoreNeeded)) * 100);
+    levelBarEl.style.width = pct + '%';
+  } else {
+    levelBarEl.style.width = '100%';
+  }
+}
+
+let luTimeout;
+function showLevelUp(name) {
+  luSubText.textContent = `Nivel: ${name}`;
+  luBanner.className = '';
+  void luBanner.offsetWidth;
+  luBanner.className = 'show';
+  clearTimeout(luTimeout);
+  luTimeout = setTimeout(() => { luBanner.className = ''; }, 1500);
+}
+
+// ═══════════════════════════════════════════════
+//  COMBO
+// ═══════════════════════════════════════════════
+let comboTO;
+function showCombo(text) {
+  comboDisp.textContent = text;
+  comboDisp.className = '';
+  void comboDisp.offsetWidth;
+  comboDisp.className = 'show';
+  clearTimeout(comboTO);
+  comboTO = setTimeout(() => { comboDisp.className=''; }, 800);
+}
+
+// ═══════════════════════════════════════════════
+//  GAME OVER
+// ═══════════════════════════════════════════════
+function triggerGameOver() {
+  gameRunning = false;
+  stopBgMusic();
+  clearInterval(timerInterval);
+  sfxGameOver();
+
+  // Save to leaderboard
+  leaderboard.push({ score, diff: selectedDiff, label: DIFFICULTIES[selectedDiff].label, bubbles: bubblesPopped, level: currentLevel });
+  leaderboard.sort((a,b) => b.score - a.score);
+  leaderboard = leaderboard.slice(0, 7);
+  try { localStorage.setItem('cbLeaderboard', JSON.stringify(leaderboard)); } catch(e){}
+
+  // Populate GO screen
+  document.getElementById('go-score').textContent = score;
+  document.getElementById('go-bubbles').textContent = bubblesPopped;
+  document.getElementById('go-level').textContent = LEVELS[currentLevel].name;
+  document.getElementById('go-diff').textContent = DIFFICULTIES[selectedDiff].label;
+
+  lbEntries.innerHTML = '';
+  leaderboard.forEach((e, i) => {
+    const row = document.createElement('div');
+    row.className = 'lb-entry' + (e.score === score && i === leaderboard.findIndex(x=>x.score===score) ? ' highlight' : '');
+    row.innerHTML = `<span class="le-rank">#${i+1}</span><span class="le-diff">${e.label}</span><span class="le-score">${e.score}</span>`;
+    lbEntries.appendChild(row);
+  });
+
+  setTimeout(() => {
+    gameoverEl.style.display = 'flex';
+    requestAnimationFrame(() => gameoverEl.classList.add('show'));
+  }, 400);
+}
+
+// ═══════════════════════════════════════════════
+//  DRAW  –  HAND SKELETON  (all 21 landmarks)
+// ═══════════════════════════════════════════════
+// MediaPipe hand connections
+const HAND_CONNECTIONS = [
+  [0,1],[1,2],[2,3],[3,4],         // thumb
+  [0,5],[5,6],[6,7],[7,8],         // index
+  [5,9],[9,10],[10,11],[11,12],    // middle
+  [9,13],[13,14],[14,15],[15,16],  // ring
+  [13,17],[17,18],[18,19],[19,20], // pinky
+  [0,17]                           // palm edge
+];
+
+// Current raw landmarks per hand for drawing
+let rawHandLandmarks = [];
+
+function drawHandSkeleton(landmarks, color) {
+  if (!landmarks || landmarks.length < 21) return;
+  const pts = landmarks.map(lm => ({
+    x: (1 - lm.x) * canvas.width,
+    y: lm.y * canvas.height
+  }));
+
+  ctx.save();
+  ctx.shadowColor = color;
+  ctx.shadowBlur  = 12;
+
+  // Bones
+  ctx.strokeStyle = color;
+  ctx.lineWidth   = 2.2;
+  ctx.globalAlpha = 0.75;
+  for (const [a,b] of HAND_CONNECTIONS) {
+    ctx.beginPath();
+    ctx.moveTo(pts[a].x, pts[a].y);
+    ctx.lineTo(pts[b].x, pts[b].y);
+    ctx.stroke();
+  }
+
+  // Joints
+  ctx.globalAlpha = 1;
+  for (let i=0; i<pts.length; i++) {
+    const isFingerTip = [4,8,12,16,20].includes(i);
+    const r = isFingerTip ? 7 : 4;
+    ctx.beginPath();
+    ctx.arc(pts[i].x, pts[i].y, r, 0, Math.PI*2);
+    ctx.fillStyle   = isFingerTip ? '#fff' : color;
+    ctx.strokeStyle = color;
+    ctx.lineWidth   = 1.5;
+    ctx.fill();
+    if (!isFingerTip) ctx.stroke();
+  }
+  ctx.restore();
+}
+
+const HAND_COLORS = ['rgba(120,220,255,0.9)', 'rgba(200,140,255,0.9)'];
+
+// ═══════════════════════════════════════════════
+//  DRAW  –  BUBBLE
+// ═══════════════════════════════════════════════
+function drawBubble(b, t) {
+  const wx = Math.sin(t*0.002 + b.wobble) * 2.5;
+  ctx.save();
+  ctx.shadowColor = b.color.glow;
+  ctx.shadowBlur  = 20;
+
+  ctx.beginPath();
+  ctx.arc(b.x + wx*0.3, b.y, b.r, 0, Math.PI*2);
+  ctx.fillStyle = b.color.fill;
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.arc(b.x + wx*0.3, b.y, b.r, 0, Math.PI*2);
+  ctx.strokeStyle = b.color.stroke;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Highlight
+  ctx.beginPath();
+  ctx.ellipse(b.x + wx*0.3 - b.r*0.28, b.y - b.r*0.3, b.r*0.22, b.r*0.13, -0.6, 0, Math.PI*2);
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.fill();
+
+  ctx.restore();
+}
+
+// ═══════════════════════════════════════════════
+//  DRAW  –  PARTICLES
+// ═══════════════════════════════════════════════
+function updateParticles() {
+  for (const p of particles) {
+    p.x += p.vx; p.y += p.vy;
+    p.vy += 0.13; p.vx *= 0.97;
+    p.alpha -= 0.026 / p.life;
+    p.r *= 0.97;
+  }
+  particles = particles.filter(p => p.alpha > 0.02 && p.r > 0.5);
+  for (const p of particles) {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, p.alpha);
+    ctx.shadowColor = p.color;
+    ctx.shadowBlur  = 7;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+    ctx.fillStyle = p.color;
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  GAME LOOP
+// ═══════════════════════════════════════════════
+function gameLoop(ts) {
+  if (!gameRunning) return;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Ambient bg
+  const grd = ctx.createRadialGradient(canvas.width*.5,canvas.height*.5,0, canvas.width*.5,canvas.height*.5,canvas.width*.75);
+  grd.addColorStop(0,'rgba(18,28,58,0.3)');
+  grd.addColorStop(1,'rgba(4,4,16,0.72)');
+  ctx.fillStyle = grd;
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  // Spawn
+  const lvlMult  = 1 + currentLevel * 0.15;
+  const dynRate  = Math.max(diffConfig.spawnMin, diffConfig.spawnBase / lvlMult);
+  if (ts - lastSpawn > dynRate) { spawnBubble(); lastSpawn = ts; }
+
+  // Update + remove fallen bubbles (lose life inside checkCollisions)
+  for (const b of bubbles) b.y += b.speed;
+
+  // Collision + life check
+  checkCollisions();
+
+  // Draw bubbles
+  for (const b of bubbles) drawBubble(b, ts);
+
+  // Particles
+  updateParticles();
+
+  // Hand skeletons (all 21 pts per hand)
+  rawHandLandmarks.forEach((lms, i) => drawHandSkeleton(lms, HAND_COLORS[i % 2]));
+
+  // Vignette
+  const vig = ctx.createRadialGradient(canvas.width*.5,canvas.height*.5,canvas.height*.28, canvas.width*.5,canvas.height*.5,canvas.height*.88);
+  vig.addColorStop(0,'transparent');
+  vig.addColorStop(1,'rgba(0,0,10,0.38)');
+  ctx.fillStyle = vig;
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  updateLevelUI();
+
+  frameCount++;
+  requestAnimationFrame(gameLoop);
+}
+
+// ═══════════════════════════════════════════════
+//  MEDIAPIPE  –  all 21 landmarks as coliders
+// ═══════════════════════════════════════════════
+let mpHands;
+
+function initMediaPipe() {
+  mpHands = new Hands({
+    locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`
+  });
+  mpHands.setOptions({
+    maxNumHands: 2,
+    modelComplexity: 1,
+    minDetectionConfidence: 0.65,
+    minTrackingConfidence: 0.55
+  });
+  mpHands.onResults(onHandResults);
+}
+
+function onHandResults(results) {
+  fingerPoints = [];
+  rawHandLandmarks = [];
+  let detected = 0;
+
+  if (results.multiHandLandmarks) {
+    detected = results.multiHandLandmarks.length;
+    rawHandLandmarks = results.multiHandLandmarks;
+
+    for (const lms of results.multiHandLandmarks) {
+      // Use ALL 21 landmarks as collision points
+      for (const lm of lms) {
+        fingerPoints.push({
+          x: (1 - lm.x) * canvas.width,
+          y: lm.y * canvas.height
+        });
+      }
+    }
+  }
+
+  handCountEl.textContent = detected;
+  lmCountEl.textContent   = fingerPoints.length;
+
+  if (detected > 0) {
+    statusDot.className   = 'active';
+    statusText.textContent = detected===1 ? '1 mano detectada' : `${detected} manos detectadas`;
+  } else {
+    statusDot.className   = '';
+    statusText.textContent = 'Buscando manos…';
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  CAMERA
+// ═══════════════════════════════════════════════
+async function startCamera() {
+  loadingEl.style.display = 'flex';
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video:{ width:{ideal:1280}, height:{ideal:720}, facingMode:'user' },
+      audio:false
+    });
+    video.srcObject = stream;
+    await new Promise(r => video.onloadedmetadata = r);
+
+    initMediaPipe();
+
+    const cam = new Camera(video, {
+      onFrame: async () => { if(mpHands) await mpHands.send({image:video}); },
+      width:1280, height:720
+    });
+    await cam.start();
+
+    loadingEl.style.display = 'none';
+    initAudio();
+    startGame();
+  } catch(err) {
+    loadingEl.style.display = 'none';
+    alert('No se pudo acceder a la cámara.\n' + err.message);
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  START / RESET GAME
+// ═══════════════════════════════════════════════
+function startGame() {
+  diffConfig   = DIFFICULTIES[selectedDiff];
+  score        = 0;
+  lives        = diffConfig.lives;
+  currentLevel = 0;
+  bubblesPopped= 0;
+  bubbles      = [];
+  particles    = [];
+  spawnRate    = diffConfig.spawnBase;
+  lastSpawn    = 0;
+  frameCount   = 0;
+
+  scoreEl.textContent = '0';
+  updateLivesUI();
+  updateLevelUI();
+  diffBadge.textContent = diffConfig.label;
+
+  gameoverEl.classList.remove('show');
+  gameoverEl.style.display = 'none';
+
+  gameRunning = true;
+  startTimer();
+  startBgMusic();
+  requestAnimationFrame(gameLoop);
+}
+
+// ═══════════════════════════════════════════════
+//  LEADERBOARD  (persist localStorage)
+// ═══════════════════════════════════════════════
+function loadLeaderboard() {
+  try {
+    const raw = localStorage.getItem('cbLeaderboard');
+    if (raw) leaderboard = JSON.parse(raw);
+  } catch(e) {}
+}
+loadLeaderboard();
+
+// ═══════════════════════════════════════════════
+//  VOLUME CONTROL
+// ═══════════════════════════════════════════════
+volSlider.addEventListener('input', () => {
+  if (masterGain) masterGain.gain.value = parseFloat(volSlider.value);
+  isMuted = parseFloat(volSlider.value) === 0;
+  volIcon.textContent = isMuted ? '🔇' : parseFloat(volSlider.value) < 0.4 ? '🔉' : '🔊';
+});
+volIcon.addEventListener('click', () => {
+  if (isMuted) {
+    volSlider.value = '0.5';
+    if (masterGain) masterGain.gain.value = 0.5;
+    isMuted = false;
+    volIcon.textContent = '🔊';
+  } else {
+    volSlider.value = '0';
+    if (masterGain) masterGain.gain.value = 0;
+    isMuted = true;
+    volIcon.textContent = '🔇';
+  }
+});
+
+// ═══════════════════════════════════════════════
+//  DIFFICULTY BUTTONS
+// ═══════════════════════════════════════════════
+document.querySelectorAll('.diff-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    selectedDiff = btn.dataset.diff;
+  });
+});
+
+// ═══════════════════════════════════════════════
+//  BUTTON EVENTS
+// ═══════════════════════════════════════════════
+document.getElementById('start-btn').addEventListener('click', () => {
+  splashEl.classList.add('hidden');
+  setTimeout(() => splashEl.style.display='none', 600);
+  startCamera();
+});
+
+document.getElementById('retry-btn').addEventListener('click', () => {
+  gameoverEl.classList.remove('show');
+  gameoverEl.style.display='none';
+  startGame();
+});
+
+document.getElementById('menu-btn').addEventListener('click', () => {
+  gameoverEl.classList.remove('show');
+  gameoverEl.style.display='none';
+  splashEl.style.display='flex';
+  splashEl.style.opacity='0';
+  splashEl.classList.remove('hidden');
+  requestAnimationFrame(() => { splashEl.style.opacity='1'; });
+  stopBgMusic();
+  gameRunning=false;
+});
+</script>
+</body>
+</html>

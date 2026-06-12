@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Pizarra Virtual con MediaPipe Hands</title>
+    <link rel="stylesheet" href="css/styles.css">
+
+</head>
+<body>
+
+    <div id="container">
+
+        <video id="video" autoplay playsinline></video>
+
+        <canvas id="drawCanvas"></canvas>
+
+        <div id="panel">
+
+            <h2>🖐 Pizarra Virtual</h2>
+
+            <div>Estado: <span id="estado">Reposo</span></div>
+
+            <div>Mano: <span id="mano">No</span></div>
+
+            <div>X: <span id="coordX">0</span></div>
+
+            <div>Y: <span id="coordY">0</span></div>
+
+            <div>Pinza: <span id="distancia">0</span></div>
+
+            <div>FPS: <span id="fps">0</span></div>
+
+            <button id="clearBtn">
+                Limpiar Pizarra
+            </button>
+
+        </div>
+
+    </div>
+
+    <!-- MediaPipe -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+    <script src="js/app.js"></script>
+
+</body>
+</html>

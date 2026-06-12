@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reconocimiento de Emociones 😊</title>
+    <link rel="stylesheet" href="style.css">    
+
+</head>
+
+<body>
+
+    <h1>😊 Reconocimiento de Emociones</h1>
+
+    <button onclick="init()">
+        📷 Iniciar Cámara
+    </button>
+
+    <div id="webcam-container"></div>
+
+    <div id="label-container"></div>
+
+    <h2 id="resultado">
+        Esperando detección...
+    </h2>
+
+    <!-- TensorFlow -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+
+    <!-- Teachable Machine -->
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+
+    <script>
+
+        /****************************************************
+         * URL DEL MODELO
+         ****************************************************/
+        const URL = "./emociones/";
+
+        /****************************************************
+         * VARIABLES GLOBALES
+         ****************************************************/
+        let model;
+        let webcam;
+        let labelContainer;
+        let maxPredictions;
+
+        /****************************************************
+         * CARGAR MODELO Y CÁMARA
+         ****************************************************/
+        async function init() {
+
+            try {
+
+                const modelURL = URL + "model.json";
+                const metadataURL = URL + "metadata.json";
+
+                model = await tmImage.load(
+                    modelURL,
+                    metadataURL
+                );
+
+                maxPredictions = model.getTotalClasses();
+
+                const flip = true;
+
+                webcam = new tmImage.Webcam(
+                    400,
+                    400,
+                    flip
+                );
+
+                await webcam.setup();
+
+                await webcam.play();
+
+                window.requestAnimationFrame(loop);
+
+                document
+                    .getElementById("webcam-container")
+                    .appendChild(webcam.canvas);
+
+                labelContainer =
+                    document.getElementById("label-container");
+
+                for (let i = 0; i < maxPredictions; i++) {
+
+                    labelContainer.appendChild(
+                        document.createElement("div")
+                    );
+
+                }
+
+            } catch (error) {
+
+                console.error(error);
+
+                alert(
+                    "Error al iniciar la cámara o cargar el modelo:\n" +
+                    error.message
+                );
+
+            }
+        }
+
+        /****************************************************
+         * BUCLE PRINCIPAL
+         ****************************************************/
+        async function loop() {
+
+            webcam.update();
+
+            await predict();
+
+            window.requestAnimationFrame(loop);
+
+        }
+
+        /****************************************************
+         * PREDICCIÓN
+         ****************************************************/
+        async function predict() {
+
+            const prediction =
+                await model.predict(webcam.canvas);
+
+            let mejorClase = "";
+            let mayorProbabilidad = 0;
+
+            for (let i = 0; i < maxPredictions; i++) {
+
+                const probabilidad =
+                    prediction[i].probability;
+
+                if (probabilidad > mayorProbabilidad) {
+
+                    mayorProbabilidad = probabilidad;
+
+                    mejorClase =
+                        prediction[i].className;
+
+                }
+
+                const textoResultado =
+                    prediction[i].className +
+                    ": " +
+                    (probabilidad * 100).toFixed(2) +
+                    "%";
+
+                labelContainer.childNodes[i]
+                    .innerHTML = textoResultado;
+            }
+
+            let mensaje = "";
+
+            switch (mejorClase) {
+
+                case "Feliz":
+                    mensaje = "😊 Te ves feliz";
+                    break;
+
+                case "Triste":
+                    mensaje = "😢 Te ves triste";
+                    break;
+
+
+                case "Sorprendido":
+                    mensaje = "😲 Estás sorprendido";
+                    break;
+
+                case "Neutral":
+                    mensaje = "😐 Expresión neutral";
+                    break;
+
+                default:
+                    mensaje = "🤔 Analizando emoción...";
+            }
+
+            document.getElementById("resultado")
+                .innerHTML = mensaje;
+
+            console.log(
+                "Emoción detectada:",
+                mejorClase
+            );
+        }
+
+    </script>
+
+</body>
+
+</html>

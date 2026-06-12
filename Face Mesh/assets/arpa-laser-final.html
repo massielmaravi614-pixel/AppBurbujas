@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Láser Arpa — 10 Dedos</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@700;900&display=swap');
+
+:root {
+  --bg: #04000d;
+  --c0: #00ffff; --c1: #ff00ff; --c2: #ffff00; --c3: #00ff88; --c4: #ff4400;
+  --ui: #8855ff;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width:100%; height:100%; background:var(--bg); color:#cce0ff; font-family:'Share Tech Mono',monospace; overflow:hidden; user-select:none; }
+
+/* scanlines CRT */
+body::after { content:''; position:fixed; inset:0; background:repeating-linear-gradient(0deg,transparent,transparent 2px,#00000018 2px,#00000018 4px); pointer-events:none; z-index:9999; }
+
+/* ── LAYOUT ── */
+#app { display:grid; grid-template-columns:1fr 52px; grid-template-rows:54px 1fr 42px; width:100vw; height:100vh; }
+
+/* ── HEADER ── */
+#hdr { grid-column:1/3; display:flex; align-items:center; gap:12px; padding:0 20px; border-bottom:1px solid #fff1; background:linear-gradient(90deg,#0a001890,transparent); }
+#hdr h1 { font-family:'Orbitron',sans-serif; font-size:.9rem; font-weight:900; letter-spacing:.22em; background:linear-gradient(90deg,var(--c0),var(--c1),var(--c2)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+#dot { width:8px; height:8px; border-radius:50%; background:#f24; box-shadow:0 0 6px #f24; flex-shrink:0; transition:background .3s,box-shadow .3s; }
+#dot.on { background:var(--c3); box-shadow:0 0 10px var(--c3); }
+#stxt { font-size:.62rem; color:#66557799; letter-spacing:.1em; }
+.sp { flex:1; }
+#btn { font-family:'Orbitron',sans-serif; font-size:.62rem; font-weight:700; letter-spacing:.18em; padding:6px 16px; border:1px solid var(--ui); background:transparent; color:var(--ui); cursor:pointer; clip-path:polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%); transition:background .2s,color .2s; }
+#btn:hover { background:var(--ui); color:#000; }
+
+/* ── ESCENARIO ── */
+#stage { grid-column:1; grid-row:2; position:relative; overflow:hidden; background:radial-gradient(ellipse at 50% 110%,#1a005530,var(--bg) 65%); }
+#camC { position:absolute; inset:0; width:100%; height:100%; opacity:.2; transform:scaleX(-1); }
+#ovC  { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+
+/* ── CUERDAS ── */
+#strings { position:absolute; inset:0; display:flex; pointer-events:none; }
+.sc { flex:1; position:relative; display:flex; flex-direction:column; align-items:center; }
+.sc+.sc::before { content:''; position:absolute; left:0; top:8%; bottom:8%; width:1px; background:#fff1; }
+.beam { position:absolute; top:0; bottom:0; width:2px; left:50%; transform:translateX(-50%); border-radius:2px; }
+.flash { position:absolute; inset:0; opacity:0; transition:opacity .04s; }
+.lbl { position:absolute; bottom:10px; font-family:'Orbitron',sans-serif; font-size:.52rem; font-weight:700; letter-spacing:.12em; opacity:.3; transition:opacity .12s,transform .12s; }
+
+.sc[data-i="0"] .beam { background:linear-gradient(180deg,transparent,var(--c0) 20%,var(--c0) 80%,transparent); box-shadow:0 0 8px var(--c0),0 0 20px #0ff3; }
+.sc[data-i="1"] .beam { background:linear-gradient(180deg,transparent,var(--c1) 20%,var(--c1) 80%,transparent); box-shadow:0 0 8px var(--c1),0 0 20px #f0f3; }
+.sc[data-i="2"] .beam { background:linear-gradient(180deg,transparent,var(--c2) 20%,var(--c2) 80%,transparent); box-shadow:0 0 8px var(--c2),0 0 20px #ff03; }
+.sc[data-i="3"] .beam { background:linear-gradient(180deg,transparent,var(--c3) 20%,var(--c3) 80%,transparent); box-shadow:0 0 8px var(--c3),0 0 20px #0f83; }
+.sc[data-i="4"] .beam { background:linear-gradient(180deg,transparent,var(--c4) 20%,var(--c4) 80%,transparent); box-shadow:0 0 8px var(--c4),0 0 20px #f403; }
+.sc[data-i="0"] .flash { background:linear-gradient(90deg,transparent,#0ff2,transparent); }
+.sc[data-i="1"] .flash { background:linear-gradient(90deg,transparent,#f0f2,transparent); }
+.sc[data-i="2"] .flash { background:linear-gradient(90deg,transparent,#ff02,transparent); }
+.sc[data-i="3"] .flash { background:linear-gradient(90deg,transparent,#0f82,transparent); }
+.sc[data-i="4"] .flash { background:linear-gradient(90deg,transparent,#f402,transparent); }
+.sc[data-i="0"] .lbl { color:var(--c0); } .sc[data-i="1"] .lbl { color:var(--c1); }
+.sc[data-i="2"] .lbl { color:var(--c2); } .sc[data-i="3"] .lbl { color:var(--c3); }
+.sc[data-i="4"] .lbl { color:var(--c4); }
+.sc.on .beam  { filter:brightness(2.2); }
+.sc.on .flash { opacity:1; }
+.sc.on .lbl   { opacity:1; transform:scale(1.15); }
+
+/* ── INDICADOR DE DEDOS (10 puntos) ── */
+#fdots { position:absolute; top:10px; left:50%; transform:translateX(-50%); display:flex; gap:5px; z-index:10; pointer-events:none; }
+.fd { width:11px; height:11px; border-radius:50%; background:#fff1; border:1px solid #fff2; transition:background .1s,box-shadow .1s; }
+.fd.on { background:#00ff88; box-shadow:0 0 8px #00ff88; }
+
+/* ── PANEL VOLUMEN ── */
+#vp { grid-column:2; grid-row:2; display:flex; flex-direction:column; align-items:center; padding:12px 0; gap:8px; border-left:1px solid #fff1; }
+#vt { flex:1; width:12px; background:#fff1; border-radius:6px; position:relative; overflow:hidden; }
+#vf { position:absolute; bottom:0; left:0; right:0; height:70%; background:linear-gradient(0deg,var(--ui),#c4f); border-radius:6px; box-shadow:0 0 8px var(--ui); transition:height .08s; }
+#vi { font-size:.75rem; opacity:.4; }
+#vv { font-size:.52rem; color:var(--ui); opacity:.75; }
+#pr { width:20px; height:20px; border-radius:50%; border:2px solid var(--ui); opacity:.2; transition:opacity .15s,border-color .15s,box-shadow .15s; }
+#pr.on { opacity:1; border-color:#f4f; box-shadow:0 0 10px #f4f; }
+
+/* ── FOOTER ── */
+#ftr { grid-column:1/3; display:flex; align-items:center; padding:0 18px; gap:18px; border-top:1px solid #fff1; font-size:.54rem; color:#44336677; letter-spacing:.08em; }
+.ht { display:flex; align-items:center; gap:4px; }
+
+/* ── SPLASH ── */
+#splash { position:fixed; inset:0; background:#04000df2; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; z-index:1000; transition:opacity .5s; }
+#splash.hidden { opacity:0; pointer-events:none; }
+#splash h2 { font-family:'Orbitron',sans-serif; font-size:1.9rem; font-weight:900; letter-spacing:.28em; background:linear-gradient(90deg,var(--c0),var(--c1),var(--c4)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+#splash p { font-size:.74rem; color:#8877aaaa; max-width:380px; text-align:center; line-height:1.9; letter-spacing:.04em; }
+#splash p strong { color:#cce0ffaa; }
+#sbtn { font-family:'Orbitron',sans-serif; font-size:.76rem; font-weight:700; letter-spacing:.2em; padding:12px 32px; border:1px solid var(--c0); background:transparent; color:var(--c0); cursor:pointer; clip-path:polygon(10px 0%,100% 0%,calc(100% - 10px) 100%,0% 100%); transition:background .2s,color .2s; margin-top:6px; }
+#sbtn:hover { background:var(--c0); color:#000; }
+
+/* ── RIPPLE ── */
+@keyframes rpl { 0%{transform:scale(0);opacity:1} 100%{transform:scale(3);opacity:0} }
+.rpl { position:absolute; width:50px; height:50px; border-radius:50%; border:2px solid currentColor; animation:rpl .45s ease-out forwards; pointer-events:none; transform-origin:center; }
+
+#vid { display:none; }
+</style>
+</head>
+<body>
+
+<!-- SPLASH -->
+<div id="splash">
+  <h2>LÁSER ARPA</h2>
+  <p>
+    <strong>Detección de 10 dedos simultáneos.</strong><br/><br/>
+    Levanta cualquier dedo frente a la cámara<br/>
+    y tocará la cuerda en esa posición.<br/><br/>
+    <strong>Mano izquierda:</strong> pellizco pulgar+índice<br/>
+    y mueve la mano arriba/abajo → controla el volumen.
+  </p>
+  <button id="sbtn">▶ ACTIVAR CÁMARA</button>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <header id="hdr">
+    <div id="dot"></div>
+    <h1>LÁSER&nbsp;ARPA — 10&nbsp;DEDOS</h1>
+    <span id="stxt">EN ESPERA</span>
+    <div class="sp"></div>
+    <button id="btn">INICIAR</button>
+  </header>
+
+  <main id="stage">
+    <canvas id="camC"></canvas>
+    <canvas id="ovC"></canvas>
+
+    <!-- 10 puntos indicadores, uno por dedo -->
+    <div id="fdots">
+      <div class="fd" id="fd0"></div><div class="fd" id="fd1"></div>
+      <div class="fd" id="fd2"></div><div class="fd" id="fd3"></div>
+      <div class="fd" id="fd4"></div><div class="fd" id="fd5"></div>
+      <div class="fd" id="fd6"></div><div class="fd" id="fd7"></div>
+      <div class="fd" id="fd8"></div><div class="fd" id="fd9"></div>
+    </div>
+
+    <div id="strings">
+      <div class="sc" data-i="0"><div class="beam"></div><div class="flash"></div><span class="lbl">DO</span></div>
+      <div class="sc" data-i="1"><div class="beam"></div><div class="flash"></div><span class="lbl">RE</span></div>
+      <div class="sc" data-i="2"><div class="beam"></div><div class="flash"></div><span class="lbl">MI</span></div>
+      <div class="sc" data-i="3"><div class="beam"></div><div class="flash"></div><span class="lbl">FA</span></div>
+      <div class="sc" data-i="4"><div class="beam"></div><div class="flash"></div><span class="lbl">SOL</span></div>
+    </div>
+  </main>
+
+  <aside id="vp">
+    <div id="vi">♪</div>
+    <div id="pr"></div>
+    <div id="vt"><div id="vf"></div></div>
+    <div id="vv">70%</div>
+  </aside>
+
+  <footer id="ftr">
+    <div class="ht"><span>✋</span><span>DEDOS LEVANTADOS → CUERDAS</span></div>
+    <div class="ht"><span>✌</span><span>PELLIZCO IZQ → VOLUMEN</span></div>
+    <div class="ht" style="margin-left:auto"><span>v3.0 — 10 DEDOS</span></div>
+  </footer>
+</div>
+
+<video id="vid" playsinline></video>
+
+<script>
+/* ================================================================
+   LÁSER ARPA v3.0 — DETECCIÓN COMPLETA DE 10 DEDOS
+   ================================================================
+
+   MAPA DE LANDMARKS DE MEDIAPIPE (21 puntos por mano):
+   ──────────────────────────────────────────────────────
+   Cada punto tiene coordenadas (x, y, z) normalizadas [0, 1].
+   Y aumenta hacia ABAJO en pantalla.
+
+         Meñique Anular Medio Índice   Pulgar
+            20    16    12     8         4
+            19    15    11     7         3
+            18    14    10     6         2
+            17    13     9     5         1
+              \    \     |    /        /
+               \    \    |   /       /
+                \    \   |  /       /
+                 \    \  | /       /
+                  0 (MUÑECA)
+
+   CÓMO DETECTAR SI UN DEDO ESTÁ LEVANTADO:
+   ──────────────────────────────────────────
+   Comparamos la PUNTA del dedo vs. su ARTICULACIÓN INTERMEDIA:
+
+     Dedo extendido → punta está MÁS ARRIBA → tip.y < pip.y
+     Dedo doblado   → punta está MÁS ABAJO  → tip.y > pip.y
+
+   Landmarks usados:
+     PULGAR:  tip=4, pip=2  (eje X, lógica especial)
+     ÍNDICE:  tip=8, pip=6
+     MEDIO:   tip=12, pip=10
+     ANULAR:  tip=16, pip=14
+     MEÑIQUE: tip=20, pip=18
+
+   ================================================================ */
+
+/* ── NOTAS Y COLORES ── */
+const NOTAS  = ['C4','D4','E4','F4','G4'];
+const LABELS = ['DO','RE','MI','FA','SOL'];
+const COLORES = ['#00ffff','#ff00ff','#ffff00','#00ff88','#ff4400'];
+
+/*
+ * DEFINICIÓN DE LOS 5 DEDOS
+ * tip  = landmark de la PUNTA del dedo
+ * pip  = landmark de la articulación intermedia (PIP / IP)
+ *        Es el punto de referencia para saber si está doblado
+ */
+const DEDOS = [
+  { nombre:'Pulgar',  tip:4,  pip:2,  esPulgar:true  },
+  { nombre:'Índice',  tip:8,  pip:6,  esPulgar:false },
+  { nombre:'Medio',   tip:12, pip:10, esPulgar:false },
+  { nombre:'Anular',  tip:16, pip:14, esPulgar:false },
+  { nombre:'Meñique', tip:20, pip:18, esPulgar:false },
+];
+
+/* Pares de landmarks para dibujar el esqueleto de la mano */
+const CONEXIONES = [
+  [0,1],[1,2],[2,3],[3,4],
+  [0,5],[5,6],[6,7],[7,8],
+  [0,9],[9,10],[10,11],[11,12],
+  [0,13],[13,14],[14,15],[15,16],
+  [0,17],[17,18],[18,19],[19,20],
+  [5,9],[9,13],[13,17],
+];
+
+const PINCH_UMBRAL = 0.09;   // distancia normalizada pulgar↔índice para pellizco
+const COOLDOWN     = 120;    // ms mínimos entre disparos de nota por cuerda
+
+/* ── ESTADO ── */
+let sintetizador  = null;
+let nodoVolumen   = null;
+let iniciado      = false;
+let volActualDB   = -10;
+const ultimoDisparo = [0,0,0,0,0];   // cooldown independiente por cuerda
+
+/* ── DOM ── */
+const splashEl  = document.getElementById('splash');
+const dotEl     = document.getElementById('dot');
+const stxtEl    = document.getElementById('stxt');
+const stageEl   = document.getElementById('stage');
+const camC      = document.getElementById('camC');
+const ovC       = document.getElementById('ovC');
+const camCtx    = camC.getContext('2d');
+const ovCtx     = ovC.getContext('2d');
+const cuerdas   = Array.from(document.querySelectorAll('.sc'));
+const vfEl      = document.getElementById('vf');
+const vvEl      = document.getElementById('vv');
+const prEl      = document.getElementById('pr');
+const vidEl     = document.getElementById('vid');
+const fdots     = Array.from({length:10}, (_,i) => document.getElementById('fd'+i));
+
+/* ────────────────────────────────────────────────────────────────
+   INICIALIZACIÓN
+   ──────────────────────────────────────────────────────────────── */
+async function iniciar() {
+  if (iniciado) return;
+  iniciado = true;
+  splashEl.classList.add('hidden');
+  setEstado(false, 'INICIANDO…');
+  try {
+    await Tone.start();
+    crearSintetizador();
+    await abrirCamara();
+  } catch(e) {
+    iniciado = false;
+    setEstado(false, 'ERROR: ' + e.message);
+    console.error(e);
+  }
+}
+document.getElementById('sbtn').onclick = iniciar;
+document.getElementById('btn').onclick  = iniciar;
+
+/* ────────────────────────────────────────────────────────────────
+   AUDIO — Tone.js
+   ──────────────────────────────────────────────────────────────── */
+function crearSintetizador() {
+  nodoVolumen = new Tone.Volume(volActualDB).toDestination();
+  const reverb = new Tone.Reverb({ decay: 2.0, wet: 0.25 }).toDestination();
+  sintetizador = new Tone.PolySynth(Tone.Synth, {
+    oscillator: { type: 'triangle' },
+    envelope:   { attack:0.01, decay:0.2, sustain:0.08, release:0.5 },
+  });
+  sintetizador.connect(nodoVolumen);
+  sintetizador.connect(reverb);
+}
+
+function tocarNota(idx) {
+  if (sintetizador) sintetizador.triggerAttackRelease(NOTAS[idx], '8n');
+}
+
+function ajustarVolumen(db) {
+  if (nodoVolumen) nodoVolumen.volume.rampTo(Math.max(-40, Math.min(0, db)), 0.08);
+}
+
+/* ────────────────────────────────────────────────────────────────
+   CÁMARA + MEDIAPIPE
+   ──────────────────────────────────────────────────────────────── */
+async function abrirCamara() {
+  /* Paso 1: pedir permiso de cámara al navegador */
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: { width:640, height:480, facingMode:'user' },
+    audio: false,
+  });
+  vidEl.srcObject = stream;
+  await vidEl.play();
+
+  /* Paso 2: crear instancia de MediaPipe Hands */
+  const hands = new Hands({
+    locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`,
+  });
+
+  hands.setOptions({
+    maxNumHands:            2,      // AMBAS manos
+    modelComplexity:        1,      // 1 = modelo completo y preciso
+    minDetectionConfidence: 0.7,
+    minTrackingConfidence:  0.6,
+  });
+
+  /* Paso 3: registrar callback — se llama en cada frame */
+  hands.onResults(procesarFrame);
+
+  /* Paso 4: arrancar el bucle de captura */
+  const mpCam = new Camera(vidEl, {
+    onFrame: async () => { await hands.send({ image: vidEl }); },
+    width: 640, height: 480,
+  });
+
+  mpCam.start()
+    .then(() => {
+      setEstado(true, 'CÁMARA ACTIVA');
+      redimensionar();
+      window.addEventListener('resize', redimensionar);
+    })
+    .catch(err => {
+      setEstado(false, 'ERROR CÁMARA');
+      console.error(err);
+    });
+}
+
+/* ────────────────────────────────────────────────────────────────
+   CALLBACK PRINCIPAL — se ejecuta en cada frame de la cámara
+   ──────────────────────────────────────────────────────────────── */
+function procesarFrame(results) {
+  const W = camC.width;
+  const H = camC.height;
+
+  /* 1. Dibujar imagen de cámara (espejada) */
+  camCtx.save();
+  camCtx.scale(-1, 1);
+  camCtx.drawImage(results.image, -W, 0, W, H);
+  camCtx.restore();
+
+  /* 2. Limpiar overlay de landmarks */
+  ovCtx.clearRect(0, 0, W, H);
+
+  /* 3. Sin manos → apagar todo y salir */
+  if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
+    apagarCuerdas();
+    actualizarVolUI(false);
+    actualizarPuntos(0);
+    return;
+  }
+
+  /* ── SEPARAR MANO DERECHA E IZQUIERDA DEL USUARIO ──────────────
+   *
+   *  MediaPipe ve la cámara sin espejo, entonces:
+   *    label "Left"  en MediaPipe = mano DERECHA del usuario
+   *    label "Right" en MediaPipe = mano IZQUIERDA del usuario
+   *
+   *  Ambas manos detectan dedos y tocan cuerdas.
+   *  Solo la mano IZQUIERDA del usuario controla el volumen
+   *  con el gesto de pellizco.
+   */
+  let manoD = null;   // mano derecha del usuario  (label "Left" en MP)
+  let manoI = null;   // mano izquierda del usuario (label "Right" en MP)
+
+  results.multiHandLandmarks.forEach((lm, i) => {
+    const label = results.multiHandedness[i]?.label;
+    if (label === 'Left')  manoD = lm;
+    else                   manoI = lm;
+  });
+
+  /* Si solo hay una mano no identificada, úsala para notas */
+  if (!manoD && !manoI) manoD = results.multiHandLandmarks[0];
+
+  /* ── RECOLECTAR TODOS LOS DEDOS LEVANTADOS DE AMBAS MANOS ── */
+  const dedosLevantados = [];
+
+  if (manoD) {
+    const dds = obtenerDedosLevantados(manoD, 'derecha');
+    dds.forEach(d => dedosLevantados.push(d));
+    dibujarEsqueleto(manoD, W, H, '#00ccff');   // azul = mano derecha
+  }
+
+  if (manoI) {
+    const dds = obtenerDedosLevantados(manoI, 'izquierda');
+    dds.forEach(d => dedosLevantados.push(d));
+    dibujarEsqueleto(manoI, W, H, '#bb55ff');   // morado = mano izquierda
+
+    /* Pellizco de la mano izquierda → volumen */
+    detectarPellizco(manoI, W, H);
+  } else {
+    actualizarVolUI(false);
+  }
+
+  /* ── ACTIVAR CUERDAS CON TODOS LOS DEDOS ENCONTRADOS ── */
+  activarCuerdas(dedosLevantados, W, H);
+
+  /* ── ACTUALIZAR LOS 10 PUNTOS INDICADORES ── */
+  actualizarPuntos(dedosLevantados.length);
+}
+
+/* ────────────────────────────────────────────────────────────────
+   DETECCIÓN DE DEDOS LEVANTADOS
+   ────────────────────────────────────────────────────────────────
+
+   Para cada uno de los 5 dedos comparamos:
+     tip.y  vs  pip.y     (Y crece hacia abajo)
+
+   Si tip.y < pip.y → la punta está MÁS ARRIBA que la articulación
+                    → el dedo está LEVANTADO / EXTENDIDO ✓
+
+   El PULGAR es especial porque se extiende en eje X:
+     Mano derecha:   pulgar extendido → tip.x < pip.x
+     Mano izquierda: pulgar extendido → tip.x > pip.x
+   ──────────────────────────────────────────────────────────────── */
+function obtenerDedosLevantados(landmarks, ladoMano) {
+  const resultado = [];
+
+  DEDOS.forEach(dedo => {
+    const punta = landmarks[dedo.tip];   // tip: punto más distal
+    const base  = landmarks[dedo.pip];   // pip: articulación de referencia
+
+    let levantado = false;
+
+    if (dedo.esPulgar) {
+      /* Pulgar: comparar en eje X */
+      levantado = ladoMano === 'derecha'
+        ? punta.x < base.x    // mano derecha: pulgar va hacia la izquierda
+        : punta.x > base.x;   // mano izquierda: pulgar va hacia la derecha
+    } else {
+      /* Resto de dedos: comparar en eje Y
+       * levantado = punta está más arriba = Y más pequeño */
+      levantado = punta.y < base.y;
+    }
+
+    if (levantado) {
+      resultado.push({
+        x:      1 - punta.x,   // espejar X para coincidir con feed espejado
+        y:      punta.y,
+        nombre: dedo.nombre,
+        lado:   ladoMano,
+      });
+    }
+  });
+
+  return resultado;
+}
+
+/* ────────────────────────────────────────────────────────────────
+   ACTIVAR CUERDAS CON LOS DEDOS DETECTADOS
+   ────────────────────────────────────────────────────────────────
+
+   CORRECCIÓN DEL BUG ANTERIOR:
+   La función ya NO llama clearAll() dentro del bucle.
+   Se calculan las cuerdas activas PRIMERO, luego se actualiza
+   el DOM de una sola vez al final.
+   ──────────────────────────────────────────────────────────────── */
+function activarCuerdas(dedos, W, H) {
+  /* Conjunto de cuerdas que deben estar encendidas este frame */
+  const cuordasActivas = new Set();
+
+  /* Conjunto de cuerdas que ya dispararon nota en este frame */
+  const yaDisparadas = new Set();
+
+  const ahora = Date.now();
+
+  dedos.forEach(dedo => {
+    /* Posición X [0,1] → índice de cuerda [0,4] */
+    const idx = Math.max(0, Math.min(4, Math.floor(dedo.x * 5)));
+
+    cuordasActivas.add(idx);
+
+    /* Disparar nota UNA sola vez por cuerda por frame, respetando cooldown */
+    if (!yaDisparadas.has(idx) && ahora - ultimoDisparo[idx] > COOLDOWN) {
+      tocarNota(idx);
+      ultimoDisparo[idx] = ahora;
+      crearRipple(dedo.x * W, dedo.y * H, COLORES[idx]);
+      yaDisparadas.add(idx);
+    }
+
+    /* Punto brillante en la punta de cada dedo */
+    dibujarPunto(dedo.x * W, dedo.y * H, COLORES[idx], 10);
+  });
+
+  /* Actualizar DOM: encender cuerdas activas, apagar las demás */
+  cuerdas.forEach((col, i) => {
+    col.classList.toggle('on', cuordasActivas.has(i));
+  });
+}
+
+/* ────────────────────────────────────────────────────────────────
+   PELLIZCO — control de volumen (mano izquierda)
+   ────────────────────────────────────────────────────────────────
+
+   Distancia euclidiana entre:
+     landmark 4 (punta del pulgar)
+     landmark 8 (punta del índice)
+
+   d = √( (x4-x8)² + (y4-y8)² )
+
+   Si d < PINCH_UMBRAL → pellizco activo.
+
+   El centro del pellizco controla el volumen:
+     Y = 0 (mano muy arriba) → 0 dB   (máximo)
+     Y = 1 (mano muy abajo)  → -40 dB (silencio)
+
+   Fórmula: db = (1 - centerY) * 40 - 40
+   ──────────────────────────────────────────────────────────────── */
+function detectarPellizco(landmarks, W, H) {
+  const pulgar = landmarks[4];
+  const indice = landmarks[8];
+
+  const px = 1 - pulgar.x,  py = pulgar.y;
+  const ix = 1 - indice.x,  iy = indice.y;
+
+  const distancia = Math.hypot(px - ix, py - iy);
+  const pellizco  = distancia < PINCH_UMBRAL;
+
+  const cx = (px + ix) / 2;
+  const cy = (py + iy) / 2;
+
+  if (pellizco) {
+    volActualDB = (1 - cy) * 40 - 40;
+    ajustarVolumen(volActualDB);
+  }
+
+  actualizarVolUI(pellizco, volActualDB);
+
+  /* Círculo indicador en el canvas overlay */
+  ovCtx.save();
+  ovCtx.beginPath();
+  ovCtx.arc(cx * W, cy * H, pellizco ? 14 : 20, 0, Math.PI * 2);
+  ovCtx.strokeStyle = pellizco ? '#ff44ff' : '#8855ff44';
+  ovCtx.lineWidth   = pellizco ? 2.5 : 1.5;
+  if (pellizco) { ovCtx.shadowColor = '#ff44ff'; ovCtx.shadowBlur = 14; }
+  ovCtx.stroke();
+  ovCtx.restore();
+}
+
+/* ────────────────────────────────────────────────────────────────
+   DIBUJO EN CANVAS
+   ──────────────────────────────────────────────────────────────── */
+
+/* Esqueleto de la mano: líneas entre landmarks */
+function dibujarEsqueleto(landmarks, W, H, color) {
+  ovCtx.strokeStyle = color + '55';
+  ovCtx.lineWidth   = 1.5;
+  for (const [a, b] of CONEXIONES) {
+    ovCtx.beginPath();
+    ovCtx.moveTo((1-landmarks[a].x)*W, landmarks[a].y*H);
+    ovCtx.lineTo((1-landmarks[b].x)*W, landmarks[b].y*H);
+    ovCtx.stroke();
+  }
+  /* Punto en cada articulación */
+  for (const lm of landmarks) {
+    ovCtx.beginPath();
+    ovCtx.arc((1-lm.x)*W, lm.y*H, 2.5, 0, Math.PI*2);
+    ovCtx.fillStyle = color + 'bb';
+    ovCtx.fill();
+  }
+}
+
+/* Punto brillante con halo en la punta del dedo */
+function dibujarPunto(x, y, color, r) {
+  ovCtx.save();
+  ovCtx.beginPath();
+  ovCtx.arc(x, y, r, 0, Math.PI*2);
+  ovCtx.fillStyle   = color;
+  ovCtx.shadowColor = color;
+  ovCtx.shadowBlur  = 22;
+  ovCtx.fill();
+  ovCtx.restore();
+}
+
+/* Onda expansiva al tocar una cuerda */
+function crearRipple(x, y, color) {
+  const el = document.createElement('div');
+  el.className         = 'rpl';
+  el.style.left        = (x-25)+'px';
+  el.style.top         = (y-25)+'px';
+  el.style.color       = color;
+  el.style.borderColor = color;
+  el.style.boxShadow   = `0 0 10px ${color}`;
+  stageEl.appendChild(el);
+  el.addEventListener('animationend', ()=>el.remove());
+}
+
+/* ────────────────────────────────────────────────────────────────
+   UTILIDADES DE UI
+   ──────────────────────────────────────────────────────────────── */
+
+function setEstado(ok, msg) {
+  dotEl.classList.toggle('on', ok);
+  stxtEl.textContent = msg;
+}
+
+/* Barra lateral de volumen + anillo de pellizco */
+function actualizarVolUI(pellizco, db = volActualDB) {
+  prEl.classList.toggle('on', pellizco);
+  const pct = Math.round(((db + 40) / 40) * 100);
+  vfEl.style.height = pct + '%';
+  vvEl.textContent  = pct + '%';
+}
+
+/* Apagar todas las cuerdas */
+function apagarCuerdas() {
+  cuerdas.forEach(c => c.classList.remove('on'));
+}
+
+/* Actualizar los 10 puntos indicadores de dedos */
+function actualizarPuntos(n) {
+  fdots.forEach((d, i) => d.classList.toggle('on', i < n));
+}
+
+function redimensionar() {
+  const {width, height} = stageEl.getBoundingClientRect();
+  camC.width  = ovC.width  = width;
+  camC.height = ovC.height = height;
+}
+
+window.addEventListener('load', redimensionar);
+</script>
+</body>
+</html>

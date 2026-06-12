@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Piano Gestual — 10 Dedos</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Playfair+Display:wght@700&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%; height: 100%;
+  background: #1a1008;
+  color: #f0e8d0;
+  font-family: 'Inter', sans-serif;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* ── LAYOUT ── */
+#app {
+  display: grid;
+  grid-template-rows: 58px 1fr 180px;
+  width: 100vw; height: 100vh;
+}
+
+/* ── HEADER ── */
+#hdr {
+  display: flex; align-items: center; gap: 14px;
+  padding: 0 24px;
+  background: linear-gradient(180deg, #0e0904, #1a1008);
+  border-bottom: 2px solid #5c3d1a;
+  box-shadow: 0 2px 20px #00000088;
+}
+#hdr h1 {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.3rem; font-weight: 700;
+  color: #d4a843;
+  letter-spacing: .06em;
+  text-shadow: 0 0 20px #d4a84344;
+}
+#dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: #c0392b; box-shadow: 0 0 6px #c0392b;
+  flex-shrink: 0; transition: background .3s, box-shadow .3s;
+}
+#dot.on { background: #27ae60; box-shadow: 0 0 10px #27ae60; }
+#stxt { font-size: .65rem; color: #88775577; letter-spacing: .12em; text-transform: uppercase; }
+.sp { flex: 1; }
+
+/* Indicador de dedos activos */
+#finger-count {
+  font-size: .7rem; color: #d4a843aa;
+  letter-spacing: .08em;
+  background: #d4a84311;
+  padding: 4px 12px; border-radius: 20px;
+  border: 1px solid #d4a84322;
+  min-width: 120px; text-align: center;
+}
+
+#btn {
+  font-size: .65rem; font-weight: 600; letter-spacing: .12em;
+  padding: 7px 18px; border-radius: 4px;
+  border: 1px solid #d4a843; background: transparent; color: #d4a843;
+  cursor: pointer; transition: background .2s, color .2s;
+}
+#btn:hover { background: #d4a843; color: #1a1008; }
+
+/* ── CÁMARA (área central) ── */
+#camArea {
+  position: relative; overflow: hidden;
+  background: #0e0904;
+}
+#camC {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  opacity: .35; transform: scaleX(-1);
+  object-fit: cover;
+}
+#ovC {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+}
+
+/* Indicador de 10 puntos (dedos) */
+#fdots {
+  position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 6px; pointer-events: none; z-index: 10;
+}
+.fd {
+  width: 12px; height: 12px; border-radius: 50%;
+  background: #ffffff11; border: 1px solid #ffffff22;
+  transition: background .1s, box-shadow .1s;
+}
+.fd.on { background: #d4a843; box-shadow: 0 0 8px #d4a843; }
+
+/* Etiqueta de nota en cámara */
+.nota-flotante {
+  position: absolute;
+  font-family: 'Playfair Display', serif;
+  font-size: 1.4rem; font-weight: 700;
+  color: #d4a843;
+  text-shadow: 0 0 16px #d4a84388, 0 2px 4px #000a;
+  pointer-events: none;
+  animation: flotarNota .7s ease-out forwards;
+  white-space: nowrap;
+}
+@keyframes flotarNota {
+  0%   { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-70px) scale(1.3); }
+}
+
+/* ── PIANO ── */
+#pianoWrap {
+  position: relative;
+  background: linear-gradient(180deg, #2a1a08, #1a1008);
+  border-top: 3px solid #5c3d1a;
+  box-shadow: inset 0 4px 30px #00000066;
+  padding: 16px 20px 12px;
+  display: flex; flex-direction: column; align-items: center; gap: 0;
+}
+
+#piano {
+  position: relative;
+  height: 140px;
+  display: flex;
+  justify-content: center;
+}
+
+/* ── TECLAS BLANCAS ── */
+.wkey {
+  position: relative;
+  width: 52px; height: 140px;
+  background: linear-gradient(180deg, #f5f0e8 0%, #ede5d5 60%, #d8cdb8 100%);
+  border: 1px solid #b8a888;
+  border-top: none;
+  border-radius: 0 0 6px 6px;
+  cursor: pointer;
+  display: flex; align-items: flex-end; justify-content: center;
+  padding-bottom: 10px;
+  transition: background .08s, box-shadow .08s;
+  box-shadow: 2px 4px 8px #00000044, inset 0 -2px 4px #00000022;
+  z-index: 1;
+  flex-shrink: 0;
+}
+.wkey + .wkey { margin-left: 3px; }
+.wkey .klabel {
+  font-size: .62rem; font-weight: 600;
+  color: #6b5a3a; letter-spacing: .06em;
+  pointer-events: none;
+}
+.wkey.on, .wkey.pressed {
+  background: linear-gradient(180deg, #f0d870 0%, #e8c840 60%, #c8a820 100%);
+  box-shadow: 2px 2px 4px #00000044, inset 0 -1px 2px #00000022, 0 0 20px #d4a84366;
+}
+
+/* ── TECLAS NEGRAS ── */
+.bkey {
+  position: absolute;
+  width: 34px; height: 88px;
+  background: linear-gradient(180deg, #2a2015 0%, #1a1208 70%, #0e0904 100%);
+  border-radius: 0 0 5px 5px;
+  cursor: pointer;
+  z-index: 2;
+  top: 0;
+  display: flex; align-items: flex-end; justify-content: center;
+  padding-bottom: 7px;
+  box-shadow: 2px 6px 12px #000000aa, inset 0 -2px 4px #00000066;
+  transition: background .08s, box-shadow .08s;
+}
+.bkey .klabel {
+  font-size: .5rem; color: #88775599; letter-spacing: .04em;
+  pointer-events: none;
+}
+.bkey.on, .bkey.pressed {
+  background: linear-gradient(180deg, #8a6a10 0%, #6a4a08 70%, #4a3005 100%);
+  box-shadow: 2px 4px 8px #000000aa, 0 0 16px #d4a84344;
+}
+
+/* Borde superior del piano (madera) */
+#piano-lid {
+  width: 100%; max-width: 780px;
+  height: 10px;
+  background: linear-gradient(90deg, #3a2010, #6b4422, #8b5a2a, #6b4422, #3a2010);
+  border-radius: 4px 4px 0 0;
+  margin-bottom: 2px;
+  box-shadow: 0 -2px 8px #00000066;
+}
+
+/* Pedales decorativos */
+#pedales {
+  display: flex; gap: 16px; margin-top: 8px;
+}
+.pedal {
+  width: 28px; height: 8px;
+  background: linear-gradient(90deg, #8a7040, #d4a843, #8a7040);
+  border-radius: 4px;
+  box-shadow: 0 2px 4px #000000aa;
+}
+
+/* ── SPLASH ── */
+#splash {
+  position: fixed; inset: 0;
+  background: #0e0904f5;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 20px;
+  z-index: 1000; transition: opacity .5s;
+}
+#splash.hidden { opacity: 0; pointer-events: none; }
+#splash h2 {
+  font-family: 'Playfair Display', serif;
+  font-size: 2.4rem; font-weight: 700;
+  color: #d4a843;
+  text-shadow: 0 0 30px #d4a84344;
+  letter-spacing: .08em;
+}
+#splash p {
+  font-size: .8rem; color: #88775599;
+  max-width: 380px; text-align: center; line-height: 1.9;
+}
+#splash p strong { color: #f0e8d0aa; }
+#sbtn {
+  font-size: .8rem; font-weight: 600; letter-spacing: .15em;
+  padding: 13px 36px; border-radius: 4px;
+  border: 1px solid #d4a843; background: transparent; color: #d4a843;
+  cursor: pointer; transition: background .2s, color .2s; margin-top: 8px;
+  text-transform: uppercase;
+}
+#sbtn:hover { background: #d4a843; color: #0e0904; }
+
+/* ── RIPPLE en tecla ── */
+@keyframes keyRipple {
+  0%   { transform: scale(0.5); opacity: .8; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+.key-ripple {
+  position: absolute;
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  background: #d4a84344;
+  animation: keyRipple .4s ease-out forwards;
+  pointer-events: none;
+  left: 50%; top: 50%;
+  margin-left: -20px; margin-top: -20px;
+}
+
+#vid { display: none; }
+</style>
+</head>
+<body>
+
+<!-- SPLASH -->
+<div id="splash">
+  <h2>🎹 Piano Gestual</h2>
+  <p>
+    Toca el piano <strong>sin tocar nada</strong>.<br/><br/>
+    <strong>Baja cualquier dedo</strong> frente a la cámara para tocar la nota.<br/>
+    Cada dedo muestra su <strong>nombre musical</strong>.<br/><br/>
+    <strong>Mano izquierda:</strong> pellizco pulgar + índice<br/>
+    y mueve arriba/abajo → controla el volumen.
+  </p>
+  <button id="sbtn">▶ Activar Cámara</button>
+</div>
+
+<div id="app">
+
+  <!-- CABECERA -->
+  <header id="hdr">
+    <div id="dot"></div>
+    <h1>🎹 Piano Gestual</h1>
+    <span id="stxt">En espera</span>
+    <div class="sp"></div>
+    <div id="finger-count">0 dedos activos</div>
+    <button id="btn">Iniciar</button>
+  </header>
+
+  <!-- ÁREA DE CÁMARA -->
+  <div id="camArea">
+    <canvas id="camC"></canvas>
+    <canvas id="ovC"></canvas>
+
+    <!-- 10 puntos = 10 dedos -->
+    <div id="fdots">
+      <div class="fd" id="fd0"></div><div class="fd" id="fd1"></div>
+      <div class="fd" id="fd2"></div><div class="fd" id="fd3"></div>
+      <div class="fd" id="fd4"></div><div class="fd" id="fd5"></div>
+      <div class="fd" id="fd6"></div><div class="fd" id="fd7"></div>
+      <div class="fd" id="fd8"></div><div class="fd" id="fd9"></div>
+    </div>
+  </div>
+
+  <!-- PIANO -->
+  <div id="pianoWrap">
+    <div id="piano-lid"></div>
+    <div id="piano">
+      <!-- Las teclas se generan con JavaScript -->
+    </div>
+    <div id="pedales">
+      <div class="pedal"></div>
+      <div class="pedal"></div>
+      <div class="pedal"></div>
+    </div>
+  </div>
+
+</div>
+
+<video id="vid" playsinline></video>
+
+<script>
+/* ================================================================
+   PIANO GESTUAL — 10 DEDOS
+   ================================================================
+
+   TECLADO: 15 teclas (Do3 → Re4, dos octavas parciales)
+   ┌─┬─┬─┬─┬─┬─┬─┬─┬─┬─┬─┬─┬─┬─┬─┐
+   │C│D│E│F│G│A│B│C│D│E│F│G│A│B│C│   teclas blancas
+   └─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┘
+    C#  D#  F#  G#  A#  C#  D#  F#  G#  A#   (negras)
+
+   DETECCIÓN DE DEDOS:
+   • MediaPipe da 21 landmarks por mano
+   • Dedo levantado = punta.y < pip.y  (Y crece hacia abajo)
+   • La posición X de la punta mapea a la tecla del piano
+   ================================================================ */
+
+/* ── DEFINICIÓN DEL TECLADO ── */
+/*
+ * Teclas blancas: C D E F G A B  (7 por octava)
+ * Usamos 2 octavas: C3..B3, C4..B4, + C5
+ * Total: 15 teclas blancas, 10 teclas negras
+ */
+const TECLAS_BLANCAS = [
+  { nota:'C3',  label:'Do3'  },
+  { nota:'D3',  label:'Re3'  },
+  { nota:'E3',  label:'Mi3'  },
+  { nota:'F3',  label:'Fa3'  },
+  { nota:'G3',  label:'Sol3' },
+  { nota:'A3',  label:'La3'  },
+  { nota:'B3',  label:'Si3'  },
+  { nota:'C4',  label:'Do4'  },
+  { nota:'D4',  label:'Re4'  },
+  { nota:'E4',  label:'Mi4'  },
+  { nota:'F4',  label:'Fa4'  },
+  { nota:'G4',  label:'Sol4' },
+  { nota:'A4',  label:'La4'  },
+  { nota:'B4',  label:'Si4'  },
+  { nota:'C5',  label:'Do5'  },
+];
+
+/*
+ * Teclas negras: posición expresada como índice flotante entre las blancas
+ * offset: fracción de ancho de tecla blanca desde el borde izquierdo de la blanca anterior
+ *
+ * Patrón por octava: C#=0.65, D#=1.65, (E#=no), F#=3.65, G#=4.65, A#=5.65
+ * Para octava 3 (índice 0..6) y octava 4 (índice 7..13)
+ */
+const TECLAS_NEGRAS = [
+  { nota:'C#3', label:'Do#3', pos: 0.65  },
+  { nota:'D#3', label:'Re#3', pos: 1.65  },
+  { nota:'F#3', label:'Fa#3', pos: 3.65  },
+  { nota:'G#3', label:'Sol#3',pos: 4.65  },
+  { nota:'A#3', label:'La#3', pos: 5.65  },
+  { nota:'C#4', label:'Do#4', pos: 7.65  },
+  { nota:'D#4', label:'Re#4', pos: 8.65  },
+  { nota:'F#4', label:'Fa#4', pos: 10.65 },
+  { nota:'G#4', label:'Sol#4',pos: 11.65 },
+  { nota:'A#4', label:'La#4', pos: 12.65 },
+];
+
+/* Todas las teclas ordenadas para el mapeo X → tecla */
+const TODAS_LAS_TECLAS = [
+  ...TECLAS_BLANCAS.map((t,i) => ({ ...t, tipo:'blanca', wIdx:i })),
+  ...TECLAS_NEGRAS.map(t  => ({ ...t, tipo:'negra' })),
+];
+
+/* ── MAPA DE NOTAS MUSICALES ── */
+const NOTAS_ES = {
+  'C3':'Do','D3':'Re','E3':'Mi','F3':'Fa','G3':'Sol','A3':'La','B3':'Si',
+  'C4':'Do','D4':'Re','E4':'Mi','F4':'Fa','G4':'Sol','A4':'La','B4':'Si',
+  'C5':'Do',
+  'C#3':'Do#','D#3':'Re#','F#3':'Fa#','G#3':'Sol#','A#3':'La#',
+  'C#4':'Do#','D#4':'Re#','F#4':'Fa#','G#4':'Sol#','A#4':'La#',
+};
+
+const SIMBOLOS_NOTA = ['♩','♪','♫','♬'];
+let simIdx = 0;
+
+/* ── CONFIGURACIÓN ── */
+const COOLDOWN     = 150;     // ms mínimos entre notas por tecla
+const PINCH_UMBRAL = 0.09;
+
+/* ── ESTADO ── */
+let sampler      = null;   // Sampler de piano real de Tone.js
+let nodoVolumen  = null;
+let iniciado     = false;
+let volActualDB  = -8;
+const ultimoDisparo = {};   // { nota: timestamp }
+TODAS_LAS_TECLAS.forEach(t => { ultimoDisparo[t.nota] = 0; });
+
+/* ── DOM ── */
+const splashEl    = document.getElementById('splash');
+const dotEl       = document.getElementById('dot');
+const stxtEl      = document.getElementById('stxt');
+const camAreaEl   = document.getElementById('camArea');
+const camC        = document.getElementById('camC');
+const ovC         = document.getElementById('ovC');
+const camCtx      = camC.getContext('2d');
+const ovCtx       = ovC.getContext('2d');
+const pianoEl     = document.getElementById('piano');
+const vidEl       = document.getElementById('vid');
+const fdots       = Array.from({length:10}, (_,i) => document.getElementById('fd'+i));
+const fingerCount = document.getElementById('finger-count');
+const vfEl        = document.getElementById('vf');
+const vvEl        = document.getElementById('vv');
+const prEl        = document.getElementById('pr');
+
+/* ── ANCHO DE TECLA BLANCA (se calcula después de render) ── */
+let wkeyWidth = 52;   // px, valor inicial, se actualiza al renderizar
+
+/* ────────────────────────────────────────────────────────────────
+   CONSTRUCCIÓN VISUAL DEL PIANO
+   ──────────────────────────────────────────────────────────────── */
+function construirPiano() {
+  pianoEl.innerHTML = '';
+
+  /* Contenedor relativo para posicionar teclas negras sobre las blancas */
+  const totalBlancas = TECLAS_BLANCAS.length;
+  const GAP = 3;
+  wkeyWidth = 52;
+  const pianoWidth = totalBlancas * wkeyWidth + (totalBlancas - 1) * GAP;
+  pianoEl.style.width = pianoWidth + 'px';
+
+  /* ── TECLAS BLANCAS ── */
+  TECLAS_BLANCAS.forEach((tk, i) => {
+    const el = document.createElement('div');
+    el.className  = 'wkey';
+    el.id         = 'key-' + tk.nota.replace('#','s');
+    el.dataset.nota = tk.nota;
+    el.innerHTML  = `<span class="klabel">${tk.label}</span>`;
+    el.addEventListener('mousedown', () => tocarTeclaDirect(tk.nota));
+    pianoEl.appendChild(el);
+  });
+
+  /* ── TECLAS NEGRAS (posicionadas absolutamente) ── */
+  TECLAS_NEGRAS.forEach(tk => {
+    const el = document.createElement('div');
+    el.className    = 'bkey';
+    el.id           = 'key-' + tk.nota.replace('#','s');
+    el.dataset.nota = tk.nota;
+    el.innerHTML    = `<span class="klabel">${tk.label}</span>`;
+
+    /* Calcular posición left en píxeles */
+    /* tk.pos = índice de tecla blanca + offset */
+    const leftPx = tk.pos * (wkeyWidth + GAP) + (wkeyWidth - 34) / 2;
+    el.style.left = leftPx + 'px';
+
+    el.addEventListener('mousedown', () => tocarTeclaDirect(tk.nota));
+    pianoEl.appendChild(el);
+  });
+}
+
+/* ────────────────────────────────────────────────────────────────
+   INICIALIZACIÓN
+   ──────────────────────────────────────────────────────────────── */
+construirPiano();
+
+async function iniciar() {
+  if (iniciado) return;
+  iniciado = true;
+  splashEl.classList.add('hidden');
+  setEstado(false, 'Iniciando…');
+
+  try {
+    await Tone.start();
+    await crearSampler();
+    await abrirCamara();
+  } catch(e) {
+    iniciado = false;
+    setEstado(false, 'Error: ' + e.message);
+    console.error(e);
+  }
+}
+
+document.getElementById('sbtn').onclick = iniciar;
+document.getElementById('btn').onclick  = iniciar;
+
+/* ────────────────────────────────────────────────────────────────
+   AUDIO — Sampler de piano con Tone.js
+   ────────────────────────────────────────────────────────────────
+   Tone.Sampler carga samples reales de piano de un CDN público.
+   Si no carga (sin internet) cae a un PolySynth que imita el timbre.
+   ──────────────────────────────────────────────────────────────── */
+async function crearSampler() {
+  nodoVolumen = new Tone.Volume(volActualDB).toDestination();
+
+  return new Promise((resolve) => {
+    /* Intentar cargar samples reales de piano */
+    sampler = new Tone.Sampler({
+      urls: {
+        C4: 'C4.mp3', 'D#4': 'Ds4.mp3', 'F#4': 'Fs4.mp3',
+        A4: 'A4.mp3', C5: 'C5.mp3',
+        C3: 'C3.mp3', 'D#3': 'Ds3.mp3', 'F#3': 'Fs3.mp3', A3: 'A3.mp3',
+      },
+      release: 1.2,
+      baseUrl: 'https://tonejs.github.io/audio/salamander/',
+      onload: () => {
+        sampler.connect(nodoVolumen);
+        console.log('[audio] Sampler de piano cargado');
+        resolve();
+      },
+      onerror: () => {
+        /* Fallback: sintetizador que imita piano */
+        console.warn('[audio] Samples no disponibles, usando synth');
+        sampler = crearSynthPiano();
+        resolve();
+      }
+    });
+
+    /* Timeout de seguridad: si no carga en 4s, usa synth */
+    setTimeout(() => {
+      if (!sampler.loaded) {
+        sampler = crearSynthPiano();
+        resolve();
+      }
+    }, 4000);
+  });
+}
+
+/* Sintetizador que imita tímbricamente un piano (fallback sin internet) */
+function crearSynthPiano() {
+  const reverb = new Tone.Reverb({ decay: 1.8, wet: 0.22 }).connect(nodoVolumen);
+  const synth  = new Tone.PolySynth(Tone.Synth, {
+    oscillator: { type: 'triangle8' },
+    envelope:   { attack:0.005, decay:0.6, sustain:0.15, release:1.4 },
+  }).connect(reverb);
+  return synth;
+}
+
+function tocarNota(nota) {
+  if (!sampler) return;
+  try {
+    sampler.triggerAttackRelease(nota, '4n');
+  } catch(e) { /* nota no disponible en sampler */ }
+}
+
+/* Click directo con ratón en el piano */
+function tocarTeclaDirect(nota) {
+  tocarNota(nota);
+  iluminarTecla(nota, 600);
+}
+
+function ajustarVolumen(db) {
+  if (nodoVolumen) nodoVolumen.volume.rampTo(Math.max(-40, Math.min(0, db)), 0.1);
+}
+
+/* ────────────────────────────────────────────────────────────────
+   CÁMARA + MEDIAPIPE
+   ──────────────────────────────────────────────────────────────── */
+async function abrirCamara() {
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: { width:640, height:480, facingMode:'user' }, audio:false,
+  });
+  vidEl.srcObject = stream;
+  await vidEl.play();
+
+  const hands = new Hands({
+    locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`,
+  });
+  hands.setOptions({
+    maxNumHands: 2, modelComplexity: 1,
+    minDetectionConfidence: 0.7, minTrackingConfidence: 0.6,
+  });
+  hands.onResults(procesarFrame);
+
+  const mpCam = new Camera(vidEl, {
+    onFrame: async () => { await hands.send({ image: vidEl }); },
+    width: 640, height: 480,
+  });
+  mpCam.start()
+    .then(() => {
+      setEstado(true, 'Cámara activa');
+      redimensionar();
+      window.addEventListener('resize', redimensionar);
+    })
+    .catch(err => { setEstado(false,'Error cámara'); console.error(err); });
+}
+
+/* ────────────────────────────────────────────────────────────────
+   CALLBACK PRINCIPAL — un frame de la cámara
+   ──────────────────────────────────────────────────────────────── */
+function procesarFrame(results) {
+  const W = camC.width, H = camC.height;
+
+  /* Dibujar feed espejado */
+  camCtx.save();
+  camCtx.scale(-1,1);
+  camCtx.drawImage(results.image, -W, 0, W, H);
+  camCtx.restore();
+
+  /* Limpiar overlay y aplicar espejo para que los puntos coincidan con el video */
+  ovCtx.clearRect(0, 0, W, H);
+  ovCtx.save();
+  ovCtx.scale(-1, 1);
+  ovCtx.translate(-W, 0);
+
+  if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
+    apagarTodasLasTeclas();
+    actualizarPuntos(0);
+    actualizarVolUI(false);
+    return;
+  }
+
+  /* Separar manos:
+   * label "Left" en MP = mano DERECHA del usuario (cámara espejada)
+   * label "Right" en MP = mano IZQUIERDA del usuario
+   */
+  let manoD = null, manoI = null;
+  results.multiHandLandmarks.forEach((lm, i) => {
+    const label = results.multiHandedness[i]?.label;
+    if (label === 'Left')  manoD = lm;
+    else                   manoI = lm;
+  });
+  if (!manoD && !manoI) manoD = results.multiHandLandmarks[0];
+
+  const dedosActivos = [];
+
+  if (manoD) {
+    obtenerDedosLevantados(manoD, 'derecha').forEach(d => dedosActivos.push(d));
+    dibujarEsqueleto(manoD, W, H, '#d4a84388');
+  }
+  if (manoI) {
+    obtenerDedosLevantados(manoI, 'izquierda').forEach(d => dedosActivos.push(d));
+    dibujarEsqueleto(manoI, W, H, '#a888d488');
+    detectarPellizco(manoI, W, H);
+  } else {
+    actualizarVolUI(false);
+  }
+
+  procesarDedos(dedosActivos, W, H);
+  actualizarPuntos(dedosActivos.length);
+
+  ovCtx.restore(); // cerrar espejo del overlay
+}
+
+/* ────────────────────────────────────────────────────────────────
+   DETECCIÓN DE DEDOS LEVANTADOS
+   ────────────────────────────────────────────────────────────────
+   Dedo levantado: punta.y < pip.y  (Y crece hacia abajo en MP)
+   Pulgar: comparación en eje X según la mano
+   ──────────────────────────────────────────────────────────────── */
+const DEFS_DEDOS = [
+  { nombre:'Pulgar',  tip:4,  pip:2,  esPulgar:true  },
+  { nombre:'Índice',  tip:8,  pip:6,  esPulgar:false },
+  { nombre:'Medio',   tip:12, pip:10, esPulgar:false },
+  { nombre:'Anular',  tip:16, pip:14, esPulgar:false },
+  { nombre:'Meñique', tip:20, pip:18, esPulgar:false },
+];
+
+function obtenerDedosLevantados(landmarks, lado) {
+  return DEFS_DEDOS.filter(d => {
+    const tip = landmarks[d.tip];
+    const pip = landmarks[d.pip];
+    const mcp = landmarks[d.pip - 2]; // nudillo base
+
+    if (d.esPulgar) {
+      // Pulgar doblado hacia adentro con umbral firme
+      const delta = lado === 'derecha' ? tip.x - pip.x : pip.x - tip.x;
+      return delta > 0.06;
+    }
+
+    // Dedo doblado: la punta debe estar MUY por debajo del pip Y por debajo del mcp
+    // Con la mano abierta relajada tip.y < pip.y siempre
+    // Solo si tip.y > mcp.y consideramos el dedo realmente doblado hacia abajo
+    const bajoBajoPip = tip.y - pip.y > 0.04;   // punta claramente bajo pip
+    const bajoBajoMcp = tip.y > mcp.y;            // punta incluso bajo el nudillo base
+    return bajoBajoPip && bajoBajoMcp;
+  }).map(d => ({
+    x:      landmarks[d.tip].x,   // coordenada original — el canvas overlay ya está espejado
+    y:      landmarks[d.tip].y,
+    nombre: d.nombre,
+    lado:   lado,
+  }));
+}
+
+/* ────────────────────────────────────────────────────────────────
+   MAPEO DEDO → TECLA DE PIANO
+   ────────────────────────────────────────────────────────────────
+   La posición X normalizada [0,1] del dedo se mapea al ancho
+   del teclado. Las teclas negras tienen prioridad si el dedo
+   está en su zona (son más estrechas pero más al frente).
+
+   Estrategia:
+   1. Calcular cuál tecla blanca corresponde a la X
+   2. Verificar si hay una tecla negra solapando esa posición
+   3. Usar la nota de mayor prioridad (negra > blanca)
+   ──────────────────────────────────────────────────────────────── */
+function xANota(xNorm) {
+  const totalBlancas = TECLAS_BLANCAS.length;
+  const GAP = 3;
+  const anchoTotal = totalBlancas * wkeyWidth + (totalBlancas - 1) * GAP;
+
+  /* Posición en píxeles dentro del piano */
+  const xPx = xNorm * anchoTotal;
+
+  /* ── Verificar si cae en una tecla negra ── */
+  for (const tk of TECLAS_NEGRAS) {
+    /* Centro de la tecla negra en píxeles */
+    const centerPx = tk.pos * (wkeyWidth + GAP) + wkeyWidth / 2;
+    const halfW    = 17;   /* mitad del ancho de tecla negra (34/2) */
+    if (xPx >= centerPx - halfW && xPx <= centerPx + halfW) {
+      return tk.nota;
+    }
+  }
+
+  /* ── Si no, calcular tecla blanca ── */
+  const wIdx = Math.max(0, Math.min(totalBlancas - 1,
+    Math.floor(xPx / (wkeyWidth + GAP))
+  ));
+  return TECLAS_BLANCAS[wIdx].nota;
+}
+
+/* ────────────────────────────────────────────────────────────────
+   NOTA FIJA POR DEDO
+   Mano derecha (5 dedos):  Pulgar=Do4, Índice=Re4, Medio=Mi4, Anular=Fa4, Meñique=Sol4
+   Mano izquierda (5 dedos): Pulgar=La4, Índice=Si4, Medio=Do5, Anular=Re4, Meñique=Mi4
+   ──────────────────────────────────────────────────────────────── */
+const NOTA_POR_DEDO = {
+  derecha: {
+    'Pulgar':  'C4',   // Do
+    'Índice':  'D4',   // Re
+    'Medio':   'E4',   // Mi
+    'Anular':  'F4',   // Fa
+    'Meñique': 'G4',   // Sol
+  },
+  izquierda: {
+    'Pulgar':  'A4',   // La
+    'Índice':  'B4',   // Si
+    'Medio':   'C5',   // Do (alta)
+    'Anular':  'D4',   // Re
+    'Meñique': 'E4',   // Mi
+  },
+};
+
+/* ────────────────────────────────────────────────────────────────
+   PROCESAR TODOS LOS DEDOS PRESIONADOS → TECLAS
+   ──────────────────────────────────────────────────────────────── */
+function procesarDedos(dedos, W, H) {
+  const teclasPorTocar = new Set();
+  const teclasMapeadas = [];
+
+  dedos.forEach(dedo => {
+    const mapa = NOTA_POR_DEDO[dedo.lado] || NOTA_POR_DEDO['derecha'];
+    const nota = mapa[dedo.nombre] || 'C4';
+    teclasPorTocar.add(nota);
+    teclasMapeadas.push({ nota, x: dedo.x, y: dedo.y, nombre: dedo.nombre });
+  });
+
+  /* Apagar teclas que ya no se tocan */
+  document.querySelectorAll('.wkey.on, .bkey.on').forEach(el => {
+    if (!teclasPorTocar.has(el.dataset.nota)) {
+      el.classList.remove('on');
+    }
+  });
+
+  /* Activar teclas y disparar notas */
+  const yaDisparadas = new Set();
+  const ahora = Date.now();
+
+  teclasMapeadas.forEach(({ nota, x, y }) => {
+    /* Iluminar tecla */
+    const el = document.getElementById('key-' + nota.replace('#','s'));
+    if (el) el.classList.add('on');
+
+    /* Tocar nota con cooldown */
+    if (!yaDisparadas.has(nota) && ahora - ultimoDisparo[nota] > COOLDOWN) {
+      tocarNota(nota);
+      ultimoDisparo[nota] = ahora;
+      yaDisparadas.add(nota);
+
+      /* Etiqueta flotante — posición CSS espejada para que coincida con la imagen */
+      mostrarNotaFlotante(nota, (1 - x) * W, y * H);
+    }
+
+    /* Punto brillante dorado en la punta del dedo */
+    ovCtx.save();
+    ovCtx.beginPath();
+    ovCtx.arc(x * W, y * H, 11, 0, Math.PI*2);
+    ovCtx.fillStyle   = '#d4a843';
+    ovCtx.shadowColor = '#d4a843';
+    ovCtx.shadowBlur  = 24;
+    ovCtx.fill();
+    ovCtx.restore();
+  });
+}
+
+/* Etiqueta flotante con símbolo musical + nombre en español */
+function mostrarNotaFlotante(nota, x, y) {
+  const nombreEs = NOTAS_ES[nota] || nota;
+  const simbolo  = SIMBOLOS_NOTA[simIdx % SIMBOLOS_NOTA.length];
+  simIdx++;
+
+  const el = document.createElement('div');
+  el.className = 'nota-flotante';
+  el.textContent = simbolo + ' ' + nombreEs;
+  el.style.left  = Math.max(10, Math.min(x - 30, camAreaEl.clientWidth - 100)) + 'px';
+  el.style.top   = Math.max(10, y - 20) + 'px';
+  camAreaEl.appendChild(el);
+  el.addEventListener('animationend', () => el.remove());
+}
+
+/* Iluminar una tecla por N ms (al click con ratón) */
+function iluminarTecla(nota, ms) {
+  const el = document.getElementById('key-' + nota.replace('#','s'));
+  if (!el) return;
+  el.classList.add('pressed');
+
+  /* Ripple dentro de la tecla */
+  const rip = document.createElement('div');
+  rip.className = 'key-ripple';
+  el.appendChild(rip);
+  rip.addEventListener('animationend', () => rip.remove());
+
+  setTimeout(() => el.classList.remove('pressed'), ms);
+}
+
+function apagarTodasLasTeclas() {
+  document.querySelectorAll('.wkey.on, .bkey.on').forEach(el => el.classList.remove('on'));
+}
+
+/* ────────────────────────────────────────────────────────────────
+   PELLIZCO — volumen (mano izquierda)
+   ──────────────────────────────────────────────────────────────── */
+function detectarPellizco(landmarks, W, H) {
+  const p = landmarks[4], ix = landmarks[8];
+  const px = p.x, py = p.y;
+  const ex = ix.x, ey = ix.y;
+  const dist     = Math.hypot(px-ex, py-ey);
+  const pellizco = dist < PINCH_UMBRAL;
+  const cx = (px+ex)/2, cy = (py+ey)/2;
+
+  if (pellizco) {
+    volActualDB = (1-cy)*40-40;
+    ajustarVolumen(volActualDB);
+  }
+  actualizarVolUI(pellizco, volActualDB);
+
+  ovCtx.save();
+  ovCtx.beginPath();
+  ovCtx.arc(cx*W, cy*H, pellizco?14:20, 0, Math.PI*2);
+  ovCtx.strokeStyle = pellizco ? '#d4a843' : '#88775544';
+  ovCtx.lineWidth   = pellizco ? 2.5 : 1.5;
+  if (pellizco) { ovCtx.shadowColor='#d4a843'; ovCtx.shadowBlur=14; }
+  ovCtx.stroke();
+  ovCtx.restore();
+}
+
+/* ────────────────────────────────────────────────────────────────
+   ESQUELETO DE MANO
+   ──────────────────────────────────────────────────────────────── */
+const CONEXIONES = [
+  [0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],
+  [0,9],[9,10],[10,11],[11,12],[0,13],[13,14],[14,15],[15,16],
+  [0,17],[17,18],[18,19],[19,20],[5,9],[9,13],[13,17],
+];
+
+function dibujarEsqueleto(lm, W, H, color) {
+  ovCtx.strokeStyle = color;
+  ovCtx.lineWidth   = 1.5;
+  for (const [a,b] of CONEXIONES) {
+    ovCtx.beginPath();
+    ovCtx.moveTo(lm[a].x*W, lm[a].y*H);
+    ovCtx.lineTo(lm[b].x*W, lm[b].y*H);
+    ovCtx.stroke();
+  }
+  for (const p of lm) {
+    ovCtx.beginPath();
+    ovCtx.arc(p.x*W, p.y*H, 2.5, 0, Math.PI*2);
+    ovCtx.fillStyle = color.replace('88','ff');
+    ovCtx.fill();
+  }
+}
+
+/* ────────────────────────────────────────────────────────────────
+   UI
+   ──────────────────────────────────────────────────────────────── */
+function setEstado(ok, msg) {
+  dotEl.classList.toggle('on', ok);
+  stxtEl.textContent = msg;
+}
+
+function actualizarVolUI(pellizco, db = volActualDB) {
+  if (prEl) prEl.classList.toggle('on', pellizco);
+  const pct = Math.round(((db+40)/40)*100);
+  if (vfEl) vfEl.style.height = pct+'%';
+  if (vvEl) vvEl.textContent  = pct+'%';
+}
+
+function actualizarPuntos(n) {
+  fdots.forEach((d,i) => d.classList.toggle('on', i < n));
+  fingerCount.textContent = n === 0
+    ? '0 dedos presionados'
+    : n === 1 ? '1 dedo presionado ♪'
+    : n + ' dedos presionados ♫';
+}
+
+function redimensionar() {
+  const r = camAreaEl.getBoundingClientRect();
+  camC.width  = ovC.width  = r.width;
+  camC.height = ovC.height = r.height;
+}
+
+window.addEventListener('load', redimensionar);
+</script>
+</body>
+</html>

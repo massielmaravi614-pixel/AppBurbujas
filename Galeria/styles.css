@@ -1,0 +1,302 @@
+/* =============================================
+   RESET & BASE
+============================================= */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  min-height: 100vh;
+  background: #0d0d14;
+  color: #f0eefc;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow-x: hidden;
+}
+
+/* =============================================
+   HEADER
+============================================= */
+header {
+  width: 100%;
+  padding: 18px 32px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 0.5px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.03);
+}
+
+.logo {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: #a9a2f5;
+  text-transform: uppercase;
+}
+
+#status-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: rgba(255,255,255,0.5);
+}
+
+#status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #555;
+  flex-shrink: 0;
+  transition: background 0.3s;
+}
+#status-dot.ready   { background: #1D9E75; box-shadow: 0 0 6px #1D9E75; }
+#status-dot.gesture { background: #7F77DD; box-shadow: 0 0 6px #7F77DD; }
+#status-dot.error   { background: #E24B4A; }
+
+#fps-counter {
+  font-size: 11px;
+  color: rgba(255,255,255,0.3);
+  min-width: 60px;
+  text-align: right;
+}
+
+/* =============================================
+   CARRUSEL — EFECTO COVEFLOW
+============================================= */
+#carousel-section {
+  width: 100%;
+  padding: 48px 0 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  perspective: 900px;
+  min-height: 300px;
+}
+
+#carousel-track {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  position: relative;
+}
+
+/* REQUISITO 1: tarjeta base — opacidad reducida y escala menor */
+.card {
+  flex-shrink: 0;
+  width: 150px;
+  height: 200px;
+  border-radius: 14px;
+  border: 0.5px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.05);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px;
+  text-align: center;
+
+  opacity: 0.5;               /* REQUISITO: opacidad reducida por defecto */
+  transform: scale(0.8);      /* REQUISITO: tamaño menor por defecto */
+  transition:
+    opacity      0.45s cubic-bezier(.4,0,.2,1),
+    transform    0.45s cubic-bezier(.4,0,.2,1),
+    border-color 0.45s,
+    background   0.45s;
+
+  cursor: default;
+  user-select: none;
+  position: relative;
+  z-index: 1;
+}
+
+.card .card-art   { font-size: 58px; line-height: 1; }
+.card .card-title { font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.85); }
+.card .card-year  { font-size: 10px; color: rgba(255,255,255,0.4); }
+
+/* REQUISITO 1: clase .central — asignada por JS, scale 1.25 y opacity 1 */
+.card.central {
+  opacity: 1;                           /* REQUISITO: opacidad máxima */
+  transform: scale(1.25);               /* REQUISITO: escala destacada */
+  border-color: rgba(127,119,221,0.55);
+  background: rgba(127,119,221,0.1);
+  z-index: 10;
+}
+
+/* =============================================
+   PANEL INFERIOR — CÁMARA + MÉTRICAS
+============================================= */
+#bottom-panel {
+  width: 100%;
+  max-width: 860px;
+  padding: 0 24px 32px;
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+/* Cámara */
+#cam-wrapper {
+  position: relative;
+  flex-shrink: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 0.5px solid rgba(255,255,255,0.1);
+}
+
+#vid { display: none; }
+
+#cam-canvas {
+  display: block;
+  width: 240px;
+  height: 180px;
+  border-radius: 12px;
+}
+
+#cam-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(13,13,20,0.88);
+  border-radius: 12px;
+  transition: opacity 0.4s;
+}
+#cam-overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+#cam-overlay p {
+  font-size: 12px;
+  color: rgba(255,255,255,0.5);
+  text-align: center;
+  padding: 0 12px;
+}
+
+#btn-start {
+  padding: 9px 22px;
+  border-radius: 8px;
+  border: 0.5px solid rgba(127,119,221,0.6);
+  background: rgba(127,119,221,0.15);
+  color: #c8c2f7;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+#btn-start:hover   { background: rgba(127,119,221,0.28); }
+#btn-start:active  { transform: scale(0.97); }
+#btn-start:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Métricas */
+#metrics {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.metric-card {
+  background: rgba(255,255,255,0.04);
+  border: 0.5px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+
+.metric-label {
+  font-size: 11px;
+  color: rgba(255,255,255,0.4);
+  margin-bottom: 6px;
+}
+
+.wrist-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wrist-name {
+  font-size: 12px;
+  color: rgba(255,255,255,0.6);
+  width: 80px;
+  flex-shrink: 0;
+}
+
+.bar-bg {
+  flex: 1;
+  height: 5px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 3px;
+  transition: width 0.08s linear;
+}
+
+.bar-fill.left-color  { background: #1D9E75; }
+.bar-fill.right-color { background: #7F77DD; }
+
+.wrist-val {
+  font-size: 11px;
+  color: rgba(255,255,255,0.35);
+  width: 36px;
+  text-align: right;
+}
+
+#gesture-display {
+  font-size: 22px;
+  font-weight: 700;
+  color: #a9a2f5;
+  letter-spacing: 0.02em;
+  min-height: 30px;
+}
+
+.hint {
+  font-size: 12px;
+  color: rgba(255,255,255,0.35);
+  line-height: 1.6;
+}
+
+.hint strong {
+  color: rgba(255,255,255,0.6);
+}
+
+/* REQUISITO 5: badge visual del cooldown activo */
+#cooldown-badge {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 3px 10px;
+  background: rgba(127,119,221,0.2);
+  border: 0.5px solid rgba(127,119,221,0.4);
+  border-radius: 20px;
+  font-size: 11px;
+  color: #c8c2f7;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+#cooldown-badge.show { opacity: 1; }
+
+/* =============================================
+   FOOTER
+============================================= */
+footer {
+  margin-top: auto;
+  padding: 14px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.18);
+  text-align: center;
+}
